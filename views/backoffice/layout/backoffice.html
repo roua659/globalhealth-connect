@@ -371,7 +371,6 @@
     }
     
     function logout() {
-        localStorage.removeItem('globalhealth_user');
         document.getElementById('loginOverlay').style.display = 'flex';
         document.getElementById('mainContent').style.display = 'none';
         document.getElementById('loginUsername').value = '';
@@ -380,7 +379,35 @@
     }
     
     // ============================================
-    // DONNÉES PERSISTANTES
+    // APPEL API PHP
+    // ============================================
+    const API_URL = 'api.php';
+    
+    async function apiRequest(endpoint, method = 'GET', data = null) {
+        const url = `${API_URL}?${endpoint}`;
+        const options = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        };
+        
+        if (data && (method === 'POST' || method === 'PUT')) {
+            options.body = JSON.stringify(data);
+        }
+        
+        try {
+            const response = await fetch(url, options);
+            return await response.json();
+        } catch (error) {
+            console.error('API Error:', error);
+            showNotification('Erreur de connexion au serveur', true);
+            return null;
+        }
+    }
+    
+    // ============================================
+    // DONNÉES (synchronisées avec la BDD)
     // ============================================
     let usersData = [];
     let forumPosts = [];
@@ -388,44 +415,166 @@
     let appointmentsData = [];
     let currentModule = 'dashboard';
     
-    function loadAllData() {
-        const storedUsers = localStorage.getItem('globalhealthBack_users');
-        if(storedUsers) usersData = JSON.parse(storedUsers);
-        else usersData = [];
+    async function loadAllData() {
+        // Charger les utilisateurs
+        const usersResult = await apiRequest('action=getUsers');
+        if (usersResult) usersData = usersResult;
         
-        const storedPosts = localStorage.getItem('globalhealthBack_posts');
-        if(storedPosts) forumPosts = JSON.parse(storedPosts);
-        else forumPosts = [];
+        // Charger les publications
+        const postsResult = await apiRequest('action=getPosts');
+        if (postsResult) forumPosts = postsResult;
         
-        const storedReviews = localStorage.getItem('globalhealthBack_reviews');
-        if(storedReviews) reviewsData = JSON.parse(storedReviews);
-        else reviewsData = [];
+        // Charger les avis
+        const reviewsResult = await apiRequest('action=getReviews');
+        if (reviewsResult) reviewsData = reviewsResult;
         
-        const storedAppointments = localStorage.getItem('globalhealthBack_appointments');
-        if(storedAppointments) appointmentsData = JSON.parse(storedAppointments);
-        else appointmentsData = [];
+        // Charger les rendez-vous
+        const appointmentsResult = await apiRequest('action=getAppointments');
+        if (appointmentsResult) appointmentsData = appointmentsResult;
     }
     
-    function saveUsers() { localStorage.setItem('globalhealthBack_users', JSON.stringify(usersData)); }
-    function savePosts() { localStorage.setItem('globalhealthBack_posts', JSON.stringify(forumPosts)); }
-    function saveReviews() { localStorage.setItem('globalhealthBack_reviews', JSON.stringify(reviewsData)); }
-    function saveAppointments() { localStorage.setItem('globalhealthBack_appointments', JSON.stringify(appointmentsData)); }
+    // ============ UTILISATEURS ============
+    async function addUserToDB(userData) {
+        const result = await apiRequest('action=addUser', 'POST', userData);
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        } else if (result && result.error) {
+            showNotification(result.error, true);
+            return false;
+        }
+        return false;
+    }
     
-    function syncWithFrontoffice() {
-        const doctors = usersData.filter(u => u.role === 'doctor').map(d => ({
-            id: d.id,
-            name: d.name,
-            specialty: d.specialty || 'Médecin généraliste',
-            email: d.email,
-            phone: d.phone
-        }));
-        localStorage.setItem('globalhealth_doctors', JSON.stringify(doctors));
-        localStorage.setItem('globalhealth_forumPosts', JSON.stringify(forumPosts));
-        localStorage.setItem('globalhealth_reviews', JSON.stringify(reviewsData));
+    async function updateUserInDB(id, userData) {
+        const result = await apiRequest(`action=updateUser&id=${id}`, 'PUT', userData);
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function deleteUserFromDB(id) {
+        const result = await apiRequest(`action=deleteUser&id=${id}`, 'DELETE');
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    // ============ PUBLICATIONS ============
+    async function addPostToDB(postData) {
+        const result = await apiRequest('action=addPost', 'POST', postData);
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function updatePostStatusInDB(id, status) {
+        const result = await apiRequest(`action=updatePostStatus&id=${id}&status=${status}`, 'PUT');
+        if (result && result.success) {
+            await loadAllData();
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function deletePostFromDB(id) {
+        const result = await apiRequest(`action=deletePost&id=${id}`, 'DELETE');
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    // ============ COMMENTAIRES ============
+    async function updateCommentStatusInDB(id, status) {
+        const result = await apiRequest(`action=updateCommentStatus&id=${id}&status=${status}`, 'PUT');
+        if (result && result.success) {
+            await loadAllData();
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function deleteCommentFromDB(id) {
+        const result = await apiRequest(`action=deleteComment&id=${id}`, 'DELETE');
+        if (result && result.success) {
+            await loadAllData();
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    // ============ AVIS ============
+    async function updateReviewStatusInDB(id, status) {
+        const result = await apiRequest(`action=updateReviewStatus&id=${id}&status=${status}`, 'PUT');
+        if (result && result.success) {
+            await loadAllData();
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function deleteReviewFromDB(id) {
+        const result = await apiRequest(`action=deleteReview&id=${id}`, 'DELETE');
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    // ============ RENDEZ-VOUS ============
+    async function updateAppointmentPaymentInDB(id, status) {
+        const result = await apiRequest(`action=updateAppointmentPayment&id=${id}&status=${status}`, 'PUT');
+        if (result && result.success) {
+            await loadAllData();
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    async function deleteAppointmentFromDB(id) {
+        const result = await apiRequest(`action=deleteAppointment&id=${id}`, 'DELETE');
+        if (result && result.success) {
+            await loadAllData();
+            showNotification(result.message);
+            refreshModule();
+            return true;
+        }
+        return false;
+    }
+    
+    // ============ STATISTIQUES ============
+    async function getStatsFromDB() {
+        return await apiRequest('action=getStats');
     }
     
     // ============================================
-    // NAVIGATION
+    // NAVIGATION (fonctions modifiées pour utiliser la BDD)
     // ============================================
     function switchModule(module) {
         currentModule = module;
@@ -445,17 +594,17 @@
         loadModuleContent(module);
     }
     
-    function loadModuleContent(module) {
+    async function loadModuleContent(module) {
         const body = document.getElementById('moduleContent');
-        if(module === 'dashboard') body.innerHTML = renderDashboard();
-        else if(module === 'users') body.innerHTML = renderUsers();
-        else if(module === 'forum') body.innerHTML = renderForum();
-        else if(module === 'comments') body.innerHTML = renderComments();
-        else if(module === 'reviews') body.innerHTML = renderReviews();
-        else if(module === 'appointments') body.innerHTML = renderAppointments();
+        if(module === 'dashboard') body.innerHTML = await renderDashboard();
+        else if(module === 'users') body.innerHTML = await renderUsers();
+        else if(module === 'forum') body.innerHTML = await renderForum();
+        else if(module === 'comments') body.innerHTML = await renderComments();
+        else if(module === 'reviews') body.innerHTML = await renderReviews();
+        else if(module === 'appointments') body.innerHTML = await renderAppointments();
     }
     
-    function refreshModule() { loadModuleContent(currentModule); showNotification('Module actualisé'); }
+    function refreshModule() { loadModuleContent(currentModule); }
     
     function showNotification(msg, isError=false) {
         const t = document.getElementById('notificationToast');
@@ -472,51 +621,22 @@
         return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
     }
     
-    // Fonction simple pour les statistiques (non fonctionnelle)
-    function showStats(moduleName) {
-        showNotification(`📊 Statistiques - ${moduleName} (Fonctionnalité à venir)`);
-    }
-    
-    function exportToPDF(elementId, filename) {
-        const element = document.getElementById(elementId);
-        if(element && typeof html2pdf !== 'undefined') {
-            html2pdf().from(element).set({ filename: filename }).save();
-            showNotification('Export PDF en cours...');
-        } else {
-            showNotification('Export PDF');
-        }
-    }
-    
     // ==================== DASHBOARD ====================
-    function renderDashboard() {
-        const totalUsers = usersData.length;
-        const totalDoctors = usersData.filter(u => u.role === 'doctor').length;
-        const totalPatients = usersData.filter(u => u.role === 'patient').length;
-        const totalPosts = forumPosts.length;
-        const allComments = forumPosts.flatMap(p => p.comments || []);
-        const totalComments = allComments.length;
-        const pendingComments = allComments.filter(c => c.status === 'pending').length;
-        const totalReviews = reviewsData.length;
-        const pendingReviews = reviewsData.filter(r => r.status === 'pending').length;
-        const approvedReviews = reviewsData.filter(r => r.status === 'approved');
-        const avgRating = approvedReviews.length ? (approvedReviews.reduce((s,r)=>s+r.rating,0)/approvedReviews.length).toFixed(1) : 0;
-        const totalAppointments = appointmentsData.length;
+    async function renderDashboard() {
+        const stats = await getStatsFromDB();
+        if(!stats) return '<div class="data-card"><div class="empty-state">Erreur de chargement des données</div></div>';
         
         return `
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-users"></i></div><div class="stat-number">${totalUsers}</div><div class="stat-label">Utilisateurs</div><small>${totalDoctors} médecins, ${totalPatients} patients</small></div>
-                <div class="stat-card"><div class="stat-icon" style="background:#e8f8f0;color:#2ecc71;"><i class="fas fa-newspaper"></i></div><div class="stat-number">${totalPosts}</div><div class="stat-label">Publications</div><small>forum médical</small></div>
-                <div class="stat-card"><div class="stat-icon" style="background:#fff3e0;color:#f39c12;"><i class="fas fa-comments"></i></div><div class="stat-number">${totalComments}</div><div class="stat-label">Commentaires</div><small>${pendingComments} en attente</small></div>
-                <div class="stat-card"><div class="stat-icon" style="background:#fee;color:#e74c3c;"><i class="fas fa-star"></i></div><div class="stat-number">${avgRating}</div><div class="stat-label">Note moyenne</div><small>${totalReviews} avis (${pendingReviews} en attente)</small></div>
-                <div class="stat-card"><div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-calendar-check"></i></div><div class="stat-number">${totalAppointments}</div><div class="stat-label">Rendez-vous</div><small>consultations</small></div>
+                <div class="stat-card"><div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-users"></i></div><div class="stat-number">${stats.total_users || 0}</div><div class="stat-label">Utilisateurs</div><small>${stats.total_doctors || 0} médecins, ${stats.total_patients || 0} patients</small></div>
+                <div class="stat-card"><div class="stat-icon" style="background:#e8f8f0;color:#2ecc71;"><i class="fas fa-newspaper"></i></div><div class="stat-number">${stats.total_posts || 0}</div><div class="stat-label">Publications</div><small>forum médical</small></div>
+                <div class="stat-card"><div class="stat-icon" style="background:#fff3e0;color:#f39c12;"><i class="fas fa-comments"></i></div><div class="stat-number">${stats.total_comments || 0}</div><div class="stat-label">Commentaires</div><small>${stats.pending_comments || 0} en attente</small></div>
+                <div class="stat-card"><div class="stat-icon" style="background:#fee;color:#e74c3c;"><i class="fas fa-star"></i></div><div class="stat-number">${stats.avg_rating || 0}</div><div class="stat-label">Note moyenne</div><small>${stats.total_reviews || 0} avis</small></div>
+                <div class="stat-card"><div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-calendar-check"></i></div><div class="stat-number">${stats.total_appointments || 0}</div><div class="stat-label">Rendez-vous</div><small>CA: ${stats.total_revenue || 0}€</small></div>
             </div>
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribution des notes des médecins</h5>
-                    <div class="btn-group-actions">
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Dashboard')"><i class="fas fa-chart-line me-1"></i> Statistiques</button>
-                        <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('dashboardStats', 'dashboard-stats.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
-                    </div>
                 </div>
                 <div id="dashboardStats">
                 ${usersData.filter(u => u.role === 'doctor').map(doctor => {
@@ -531,7 +651,7 @@
     }
     
     // ==================== UTILISATEURS ====================
-    function renderUsers() {
+    async function renderUsers() {
         const doctors = usersData.filter(u => u.role === 'doctor');
         const patients = usersData.filter(u => u.role === 'patient');
         
@@ -550,24 +670,21 @@
                     <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Médecins (${doctors.length})</h5>
                     <div class="btn-group-actions">
                         <button class="btn-medical btn-sm" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter</button>
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')"><i class="fas fa-chart-line"></i> Statistiques</button>
-                        <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('usersTable', 'medecins-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
                     </div>
                 </div>
                 <div id="usersTable">
                 <table class="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Spécialité</th><th>Actions</th></tr></thead>
-                <tbody>${doctors.map(d => `<tr><td><strong>${escapeHtml(d.name)}</strong><br><small class="text-muted">${escapeHtml(d.specialty || 'Généraliste')}</small></td> <td>${escapeHtml(d.email)}</td> <td>${escapeHtml(d.specialty || '-')}</td> <td><button class="icon-btn edit" onclick="editUser(${d.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${d.id})"><i class="fas fa-trash"></i></button></td> </tr>`).join('')}</tbody>
+                <tbody>${doctors.map(d => `<tr><td><strong>${escapeHtml(d.name)}</strong><br><small class="text-muted">${escapeHtml(d.specialty || 'Généraliste')}</small></td><td>${escapeHtml(d.email)}</td><td>${escapeHtml(d.specialty || '-')}</td><td><button class="icon-btn edit" onclick="editUser(${d.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${d.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody>
                 </table>
                 </div>
             </div>
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-users me-2"></i>Patients (${patients.length})</h5>
-                    <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('patientsTable', 'patients-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
                 </div>
                 <div id="patientsTable">
                 <table class="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Actions</th></tr></thead>
-                <tbody>${patients.map(p => `<tr><td>${escapeHtml(p.name)}</td> <td>${escapeHtml(p.email)}</td> <td>${escapeHtml(p.phone || '-')}</td> <td><button class="icon-btn edit" onclick="editUser(${p.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${p.id})"><i class="fas fa-trash"></i></button></td> </tr>`).join('')}</tbody>
+                <tbody>${patients.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.email)}</td><td>${escapeHtml(p.phone || '-')}</td><td><button class="icon-btn edit" onclick="editUser(${p.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${p.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody>
                 </table>
                 </div>
             </div>
@@ -581,27 +698,24 @@
     
     function showAddUserModal() { new bootstrap.Modal(document.getElementById('addUserModal')).show(); }
     
-    document.getElementById('addUserForm')?.addEventListener('submit', (e) => {
+    document.getElementById('addUserForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const newUser = {
-            id: Date.now(),
             name: document.getElementById('newUserName').value,
             email: document.getElementById('newUserEmail').value,
             phone: document.getElementById('newUserPhone').value,
             role: document.getElementById('newUserRole').value,
-            specialty: document.getElementById('newUserSpecialty').value || null,
-            status: 'active'
+            specialty: document.getElementById('newUserSpecialty').value || null
         };
-        usersData.push(newUser);
-        saveUsers();
-        syncWithFrontoffice();
-        bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
-        document.getElementById('addUserForm').reset();
-        showNotification(`Utilisateur ${newUser.name} ajouté`);
-        refreshModule();
+        
+        const success = await addUserToDB(newUser);
+        if(success) {
+            bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+            document.getElementById('addUserForm').reset();
+        }
     });
     
-    function editUser(id) {
+    async function editUser(id) {
         const user = usersData.find(u => u.id === id);
         if(!user) return;
         document.getElementById('editUserId').value = user.id;
@@ -612,35 +726,30 @@
         new bootstrap.Modal(document.getElementById('editUserModal')).show();
     }
     
-    document.getElementById('editUserForm')?.addEventListener('submit', (e) => {
+    document.getElementById('editUserForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const id = parseInt(document.getElementById('editUserId').value);
-        const user = usersData.find(u => u.id === id);
-        if(user) {
-            user.name = document.getElementById('editUserName').value;
-            user.email = document.getElementById('editUserEmail').value;
-            user.phone = document.getElementById('editUserPhone').value;
-            if(user.role === 'doctor') user.specialty = document.getElementById('editUserSpecialty').value;
-            saveUsers();
-            syncWithFrontoffice();
-            showNotification(`Utilisateur ${user.name} modifié`);
+        const userData = {
+            name: document.getElementById('editUserName').value,
+            email: document.getElementById('editUserEmail').value,
+            phone: document.getElementById('editUserPhone').value,
+            specialty: document.getElementById('editUserSpecialty').value
+        };
+        
+        const success = await updateUserInDB(id, userData);
+        if(success) {
             bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
-            refreshModule();
         }
     });
     
-    function deleteUser(id) {
+    async function deleteUser(id) {
         if(confirm('Supprimer cet utilisateur ?')) {
-            usersData = usersData.filter(u => u.id !== id);
-            saveUsers();
-            syncWithFrontoffice();
-            showNotification('Utilisateur supprimé');
-            refreshModule();
+            await deleteUserFromDB(id);
         }
     }
     
     // ==================== FORUM PUBLICATIONS ====================
-    function renderForum() {
+    async function renderForum() {
         const approvedPosts = forumPosts.filter(p => p.status === 'approved').length;
         const pendingPosts = forumPosts.filter(p => p.status === 'pending').length;
         
@@ -659,8 +768,6 @@
                     <h5 class="mb-0"><i class="fas fa-newspaper me-2"></i>Publications des médecins</h5>
                     <div class="btn-group-actions">
                         <button class="btn-medical btn-sm" onclick="showAddPostModal()"><i class="fas fa-plus"></i> Nouvelle</button>
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Publications')"><i class="fas fa-chart-line"></i> Statistiques</button>
-                        <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('forumTable', 'forum-publications.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
                     </div>
                 </div>
                 <div id="forumTable">
@@ -671,7 +778,6 @@
                     <td>${p.date}</td>
                     <td><span class="status-badge ${p.status==='approved'?'status-approved':'status-pending'}">${p.status}</span></td>
                     <td>
-                        <button class="icon-btn edit" onclick="editPost(${p.id})"><i class="fas fa-edit"></i></button>
                         <button class="icon-btn ${p.status==='approved'?'flag':'approve'}" onclick="togglePostStatus(${p.id})"><i class="fas ${p.status==='approved'?'fa-ban':'fa-check-circle'}"></i></button>
                         <button class="icon-btn delete" onclick="deletePost(${p.id})"><i class="fas fa-trash"></i></button>
                     </td>
@@ -690,44 +796,42 @@
         new bootstrap.Modal(document.getElementById('addPostModal')).show();
     }
     
-    document.getElementById('addPostForm')?.addEventListener('submit', (e) => {
+    document.getElementById('addPostForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const doctorId = parseInt(document.getElementById('postDoctorId').value);
         const doctor = usersData.find(u => u.id === doctorId);
         if(!doctor) { showNotification('Veuillez sélectionner un médecin', true); return; }
         
         const newPost = {
-            id: Date.now(),
             doctor_id: doctorId,
-            doctor_name: doctor.name,
-            doctor_avatar: doctor.name.substring(0,2).toUpperCase(),
             content: document.getElementById('postContent').value,
             image: document.getElementById('postImage').value || null,
-            video: document.getElementById('postVideo').value || null,
-            date: new Date().toLocaleDateString('fr-FR'),
-            status: 'pending',
-            comments: []
+            video: document.getElementById('postVideo').value || null
         };
-        forumPosts.push(newPost);
-        savePosts();
-        syncWithFrontoffice();
-        bootstrap.Modal.getInstance(document.getElementById('addPostModal')).hide();
-        document.getElementById('addPostForm').reset();
-        showNotification('Publication ajoutée, en attente de validation');
-        refreshModule();
+        
+        const success = await addPostToDB(newPost);
+        if(success) {
+            bootstrap.Modal.getInstance(document.getElementById('addPostModal')).hide();
+            document.getElementById('addPostForm').reset();
+        }
     });
     
-    function editPost(id) { showNotification('Fonctionnalité d\'édition à venir'); }
-    function togglePostStatus(id) {
+    async function togglePostStatus(id) {
         const post = forumPosts.find(p => p.id === id);
-        if(post) { post.status = post.status === 'approved' ? 'pending' : 'approved'; savePosts(); syncWithFrontoffice(); showNotification(`Publication ${post.status === 'approved' ? 'approuvée' : 'désapprouvée'}`); refreshModule(); }
+        if(post) {
+            const newStatus = post.status === 'approved' ? 'pending' : 'approved';
+            await updatePostStatusInDB(id, newStatus);
+        }
     }
-    function deletePost(id) {
-        if(confirm('Supprimer cette publication ?')){ forumPosts = forumPosts.filter(p => p.id !== id); savePosts(); syncWithFrontoffice(); showNotification('Publication supprimée'); refreshModule(); }
+    
+    async function deletePost(id) {
+        if(confirm('Supprimer cette publication ?')){
+            await deletePostFromDB(id);
+        }
     }
     
     // ==================== COMMENTAIRES ====================
-    function renderComments() {
+    async function renderComments() {
         const allComments = forumPosts.flatMap(p => (p.comments || []).map(c => ({ ...c, post_id: p.id, post_content: p.content.substring(0,30), doctor_name: p.doctor_name })));
         const pendingComments = allComments.filter(c => c.status === 'pending');
         const approvedComments = allComments.filter(c => c.status === 'approved');
@@ -745,7 +849,6 @@
             ${pendingComments.length ? `<div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5><i class="fas fa-clock me-2"></i>Commentaires en attente (${pendingComments.length})</h5>
-                    <button class="btn-outline-medical btn-sm" onclick="showStats('Commentaires')"><i class="fas fa-chart-line"></i> Statistiques</button>
                 </div>
                 <div id="pendingCommentsTable">
                 <table class="data-table"><thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Médecin</th><th>Actions</th></tr></thead>
@@ -754,56 +857,38 @@
                     <td>${escapeHtml(c.text)}</td>
                     <td>${escapeHtml(c.doctor_name)}</td>
                     <td>
-                        <button class="icon-btn approve" onclick="approveComment(${c.id}, ${c.post_id})"><i class="fas fa-check-circle"></i></button>
-                        <button class="icon-btn flag" onclick="reportComment(${c.id}, ${c.post_id})"><i class="fas fa-flag"></i></button>
-                        <button class="icon-btn delete" onclick="deleteComment(${c.id}, ${c.post_id})"><i class="fas fa-trash"></i></button>
+                        <button class="icon-btn approve" onclick="approveComment(${c.id})"><i class="fas fa-check-circle"></i></button>
+                        <button class="icon-btn flag" onclick="reportComment(${c.id})"><i class="fas fa-flag"></i></button>
+                        <button class="icon-btn delete" onclick="deleteComment(${c.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>`).join('')}</tbody>
                 </table>
                 </div>
             </div>` : ''}
-            <div class="data-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5><i class="fas fa-check-circle me-2"></i>Commentaires approuvés (${approvedComments.length})</h5>
-                    <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('approvedCommentsTable', 'commentaires-approuves.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
-                </div>
-                <div id="approvedCommentsTable">
-                <table class="data-table"><thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Statut</th><th>Actions</th></tr></thead>
-                <tbody>${approvedComments.map(c => `<tr>
-                    <td>${escapeHtml(c.user_name)}</td>
-                    <td>${escapeHtml(c.text)}</td>
-                    <td><span class="status-badge status-approved">Approuvé</span></td>
-                    <td><button class="icon-btn flag" onclick="reportComment(${c.id}, ${c.post_id})"><i class="fas fa-flag"></i></button><button class="icon-btn delete" onclick="deleteComment(${c.id}, ${c.post_id})"><i class="fas fa-trash"></i></button></td>
-                </tr>`).join('')}</tbody>
-                </table>
-                </div>
-            </div>
         `;
     }
     
-    function findAndUpdateComment(commentId, postId, updateFn) {
-        const post = forumPosts.find(p => p.id === postId);
-        if(post && post.comments) {
-            const commentIndex = post.comments.findIndex(c => c.id === commentId);
-            if(commentIndex !== -1) { updateFn(post.comments[commentIndex]); savePosts(); syncWithFrontoffice(); refreshModule(); return true; }
-        }
-        return false;
+    async function approveComment(commentId) {
+        await updateCommentStatusInDB(commentId, 'approved');
+        showNotification('Commentaire approuvé');
     }
     
-    function approveComment(commentId, postId) { findAndUpdateComment(commentId, postId, (c) => { c.status = 'approved'; }); showNotification('Commentaire approuvé'); }
-    function reportComment(commentId, postId) { findAndUpdateComment(commentId, postId, (c) => { c.status = 'reported'; }); showNotification('Commentaire signalé'); }
-    function deleteComment(commentId, postId) {
+    async function reportComment(commentId) {
+        await updateCommentStatusInDB(commentId, 'reported');
+        showNotification('Commentaire signalé');
+    }
+    
+    async function deleteComment(commentId) {
         if(confirm('Supprimer ce commentaire ?')) {
-            const post = forumPosts.find(p => p.id === postId);
-            if(post && post.comments) { post.comments = post.comments.filter(c => c.id !== commentId); savePosts(); syncWithFrontoffice(); showNotification('Commentaire supprimé'); refreshModule(); }
+            await deleteCommentFromDB(commentId);
+            showNotification('Commentaire supprimé');
         }
     }
     
     // ==================== AVIS PATIENTS ====================
-    function renderReviews() {
+    async function renderReviews() {
         const pendingReviews = reviewsData.filter(r => r.status === 'pending');
         const approvedReviews = reviewsData.filter(r => r.status === 'approved');
-        const reportedReviews = reviewsData.filter(r => r.status === 'reported');
         const avgRating = approvedReviews.length ? (approvedReviews.reduce((s,r)=>s+r.rating,0)/approvedReviews.length).toFixed(1) : 0;
         const ratingCounts = {1:0,2:0,3:0,4:0,5:0};
         approvedReviews.forEach(r => ratingCounts[r.rating]++);
@@ -816,13 +901,12 @@
             <div class="stats-grid">
                 <div class="stat-card"><div class="stat-number">${avgRating}</div><div class="stat-label">Note moyenne</div></div>
                 <div class="stat-card"><div class="stat-number">${reviewsData.length}</div><div class="stat-label">Total avis</div><small>${pendingReviews.length} en attente</small></div>
-                <div class="stat-card"><div class="stat-number">${approvedReviews.length}</div><div class="stat-label">Approuvés</div><small>${reportedReviews.length} signalés</small></div>
+                <div class="stat-card"><div class="stat-number">${approvedReviews.length}</div><div class="stat-label">Approuvés</div></div>
             </div>
             <div class="data-card"><h6>Distribution des notes</h6>${[5,4,3,2,1].map(star => { const count = ratingCounts[star]; const pct = approvedReviews.length ? (count/approvedReviews.length*100) : 0; return `<div class="chart-bar"><div class="chart-bar-fill" style="width:${pct}%">${star}★ (${count})</div></div>`; }).join('')}</div>
             ${pendingReviews.length ? `<div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5>Avis en attente (${pendingReviews.length})</h5>
-                    <button class="btn-outline-medical btn-sm" onclick="showStats('Avis Patients')"><i class="fas fa-chart-line"></i> Statistiques</button>
                 </div>
                 <div id="pendingReviewsTable">
                 <table class="data-table"><thead><tr><th>Patient</th><th>Médecin</th><th>Note</th><th>Commentaire</th><th>Actions</th></tr></thead>
@@ -842,15 +926,25 @@
             </div>` : ''}
             <div class="data-card">
                 <button class="btn-medical me-2" onclick="showNotifyReviewModal()"><i class="fas fa-bell"></i> Notifier un patient</button>
-                <button class="btn-outline-medical" onclick="exportToPDF('pendingReviewsTable', 'avis-patients.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF avis</button>
-                <button class="btn-outline-medical ms-2" onclick="sendAutoReviewNotification()"><i class="fas fa-clock"></i> Auto-notification</button>
             </div>
         `;
     }
     
-    function approveReview(id) { const r = reviewsData.find(r => r.id === id); if(r){ r.status = 'approved'; saveReviews(); syncWithFrontoffice(); showNotification(`Avis approuvé`); refreshModule(); } }
-    function reportReview(id) { const r = reviewsData.find(r => r.id === id); if(r){ r.status = 'reported'; saveReviews(); syncWithFrontoffice(); showNotification(`Avis signalé`); refreshModule(); } }
-    function deleteReview(id) { if(confirm('Supprimer cet avis ?')){ reviewsData = reviewsData.filter(r => r.id !== id); saveReviews(); syncWithFrontoffice(); showNotification('Avis supprimé'); refreshModule(); } }
+    async function approveReview(id) {
+        await updateReviewStatusInDB(id, 'approved');
+        showNotification('Avis approuvé');
+    }
+    
+    async function reportReview(id) {
+        await updateReviewStatusInDB(id, 'reported');
+        showNotification('Avis signalé');
+    }
+    
+    async function deleteReview(id) {
+        if(confirm('Supprimer cet avis ?')){
+            await deleteReviewFromDB(id);
+        }
+    }
     
     function showNotifyReviewModal() {
         const select = document.getElementById('notifyPatientId');
@@ -867,10 +961,8 @@
         else showNotification('Veuillez sélectionner un patient', true);
     });
     
-    function sendAutoReviewNotification() { showNotification(`🔔 Notification envoyée à ${usersData.filter(u=>u.role==='patient').length} patient(s)`); }
-    
     // ==================== RENDEZ-VOUS ====================
-    function renderAppointments() {
+    async function renderAppointments() {
         const paidAppointments = appointmentsData.filter(a => a.payment_status === 'payé').length;
         const pendingPayments = appointmentsData.filter(a => a.payment_status === 'en attente').length;
         const totalAmount = appointmentsData.reduce((sum, a) => sum + (a.amount || 0), 0);
@@ -889,10 +981,6 @@
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Liste des rendez-vous</h5>
-                    <div class="btn-group-actions">
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Rendez-vous')"><i class="fas fa-chart-line"></i> Statistiques</button>
-                        <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('appointmentsTable', 'rendez-vous.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
-                    </div>
                 </div>
                 <div id="appointmentsTable">
                 <table class="data-table"><thead><tr><th>Patient</th><th>Médecin</th><th>Date</th><th>Montant</th><th>Paiement</th><th>Actions</th></tr></thead>
@@ -910,18 +998,20 @@
         `;
     }
     
-    function confirmPayment(id) { 
-        const a = appointmentsData.find(a => a.id === id); 
-        if(a){ a.payment_status = 'payé'; saveAppointments(); showNotification('Paiement confirmé'); refreshModule(); } 
+    async function confirmPayment(id) { 
+        await updateAppointmentPaymentInDB(id, 'payé');
+        showNotification('Paiement confirmé');
     }
-    function deleteAppointment(id) { 
-        if(confirm('Annuler ce rendez-vous ?')){ appointmentsData = appointmentsData.filter(a => a.id !== id); saveAppointments(); showNotification('Rendez-vous annulé'); refreshModule(); } 
+    
+    async function deleteAppointment(id) { 
+        if(confirm('Annuler ce rendez-vous ?')){
+            await deleteAppointmentFromDB(id);
+        }
     }
     
     // ==================== INIT ====================
-    function initBackoffice() {
-        loadAllData();
-        syncWithFrontoffice();
+    async function initBackoffice() {
+        await loadAllData();
         switchModule('dashboard');
     }
 </script>
