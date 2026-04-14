@@ -229,16 +229,18 @@
             markValid(content);
         }
 
-        const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
+        // More permissive URL validation that allows query strings
+        const urlRegex = /^https?:\/\/[^\s]+$/i;
+        
         if (image.value.trim() && !urlRegex.test(image.value.trim())) {
-            showError(image, "URL d'image invalide");
+            showError(image, "URL d'image invalide (doit commencer par http:// ou https://)");
             isValid = false;
         } else if (image.value.trim()) {
             markValid(image);
         }
 
         if (video.value.trim() && !urlRegex.test(video.value.trim())) {
-            showError(video, "URL de vidéo invalide");
+            showError(video, "URL de vidéo invalide (doit commencer par http:// ou https://)");
             isValid = false;
         } else if (video.value.trim()) {
             markValid(video);
@@ -409,11 +411,51 @@
 
         const addPostForm = document.getElementById('addPostForm');
         if (addPostForm) {
-            addPostForm.addEventListener('submit', function(e) {
+            addPostForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                
                 if (!validateAddPostForm()) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
                     showNotificationMessage("Veuillez corriger les erreurs", true);
+                    return;
+                }
+
+                try {
+                    const formData = {
+                        id_medecin: document.getElementById('postDoctorId').value,
+                        contenu: document.getElementById('postContent').value.trim(),
+                        url_image: document.getElementById('postImage').value.trim() || null,
+                        url_video: document.getElementById('postVideo').value.trim() || null
+                    };
+
+                    const response = await fetch('../../api/publications.php?action=store', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showNotificationMessage("Publication ajoutée avec succès!", false);
+                        addPostForm.reset();
+                        const modal = document.getElementById('addPostModal');
+                        if (modal) {
+                            const bsModal = new bootstrap.Modal(modal);
+                            bsModal.hide();
+                        }
+                        // Reload publications if function exists
+                        if (typeof loadPublications === 'function') {
+                            loadPublications();
+                        }
+                    } else {
+                        showNotificationMessage(result.error || "Erreur lors de l'ajout", true);
+                    }
+                } catch (error) {
+                    console.error('Erreur:', error);
+                    showNotificationMessage("Erreur lors de l'ajout: " + error.message, true);
                 }
             }, true);
         }
