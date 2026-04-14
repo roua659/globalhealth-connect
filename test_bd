@@ -1,0 +1,40 @@
+<?php
+echo "<h2>Test de connexion à la base de données</h2>";
+
+require_once 'config/database.php';
+
+try {
+    $database = new Database();
+    $conn = $database->getConnection();
+    
+    if($conn) {
+        echo "✅ Connexion réussie !<br><br>";
+        
+        // Lister les tables
+        $query = "SHOW TABLES";
+        $stmt = $conn->prepare($query);
+        $stmt->execute();
+        $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        echo "📊 Tables trouvées : " . count($tables) . "<br>";
+        echo "<ul>";
+        foreach($tables as $table) {
+            echo "<li>$table</li>";
+        }
+        echo "</ul>";
+        
+        // Compter les rendez-vous
+        $query = "SELECT COUNT(*) as count FROM rendezvous";
+        $stmt = $conn->prepare($query);
+        $stmt->execute();
+        $result = $stmt->fetch();
+        echo "📅 Nombre de rendez-vous : " . $result['count'] . "<br>";
+        
+        echo "<br>✅ Tout fonctionne correctement !";
+    } else {
+        echo "❌ Erreur de connexion";
+    }
+} catch (Exception $e) {
+    echo "❌ Erreur : " . $e->getMessage();
+}
+?>
