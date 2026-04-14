@@ -1,93 +1,79 @@
 <?php
-session_start();
+// Routeur principal
+$controller = isset($_GET['controller']) ? $_GET['controller'] : 'consultation';
+$action = isset($_GET['action']) ? $_GET['action'] : 'index';
+$id = isset($_GET['id']) ? $_GET['id'] : null;
 
 // Autoloader simple
-spl_autoload_register(function ($class) {
+spl_autoload_register(function ($class_name) {
     $paths = [
-        __DIR__ . '/app/controllers/',
-        __DIR__ . '/app/models/',
-        __DIR__ . '/config/'
+        'controllers/' . $class_name . '.php',
+        'models/' . $class_name . '.php'
     ];
     foreach ($paths as $path) {
-        $file = $path . $class . '.php';
-        if (file_exists($file)) {
-            require_once $file;
+        if (file_exists($path)) {
+            require_once $path;
             return;
         }
     }
 });
 
-// Configuration des routes
-$routes = [
-    // Routes existantes (vers vos fichiers HTML)
-    '' => ['type' => 'file', 'path' => 'public/index.html'],
-    'index.html' => ['type' => 'file', 'path' => 'public/index.html'],
-    'backoffice.html' => ['type' => 'file', 'path' => 'public/backoffice.html'],
-    
-    // Routes API pour AJAX (encapsule votre JS existant)
-    'api/login' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'login'],
-    'api/logout' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'logout'],
-    'api/getDoctors' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getDoctors'],
-    'api/getReviews' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getReviews'],
-    'api/submitAppointment' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'submitAppointment'],
-    'api/submitReview' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'submitReview'],
-    'api/getStats' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getStats'],
-    
-    // Routes backoffice CRUD
-    'api/users/add' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'addUser'],
-    'api/users/edit' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'editUser'],
-    'api/users/delete' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'deleteUser'],
-    'api/appointments/add' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'addAppointment'],
-    'api/appointments/confirm' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'confirmPayment'],
-    'api/reviews/approve' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'approveReview'],
-    'api/reviews/report' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'reportReview'],
-    'api/reviews/delete' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'deleteReview'],
-    'api/reviews/notify' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'notifyPatient'],
-];
-
-// Récupérer l'URL
-$url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
-$method = $_SERVER['REQUEST_METHOD'];
-
-// Trouver la route correspondante
-$routeFound = false;
-foreach ($routes as $route => $config) {
-    if ($route === $url || ($method === 'POST' && $route === $url)) {
-        $routeFound = true;
-        
-        if ($config['type'] === 'file') {
-            // Servir le fichier HTML existant
-            $filePath = __DIR__ . '/' . $config['path'];
-            if (file_exists($filePath)) {
-                $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-                if ($ext === 'html') {
-                    // Lire et inclure le fichier en conservant le JS
-                    readfile($filePath);
-                } else {
-                    header('Content-Type: ' . mime_content_type($filePath));
-                    readfile($filePath);
-                }
-            } else {
-                http_response_code(404);
-                echo "Fichier non trouvé";
-            }
-        } else if ($config['type'] === 'controller') {
-            // Appeler le contrôleur
-            $controllerName = $config['controller'];
-            $actionName = $config['action'];
-            $controller = new $controllerName();
-            $controller->$actionName();
+// Router
+switch ($controller) {
+    case 'consultation':
+        $controllerObj = new ConsultationController();
+        switch ($action) {
+            case 'index':
+                $controllerObj->index();
+                break;
+            case 'list':
+                $controllerObj->list();
+                break;
+            case 'get':
+                if ($id) $controllerObj->get($id);
+                break;
+            case 'create':
+                $controllerObj->create();
+                break;
+            case 'update':
+                $controllerObj->update();
+                break;
+            case 'delete':
+                if ($id) $controllerObj->delete($id);
+                break;
+            default:
+                $controllerObj->index();
         }
         break;
-    }
+        
+    case 'suivie':
+        $controllerObj = new SuivieController();
+        switch ($action) {
+            case 'index':
+                $controllerObj->index();
+                break;
+            case 'list':
+                $controllerObj->list();
+                break;
+            case 'get':
+                if ($id) $controllerObj->get($id);
+                break;
+            case 'create':
+                $controllerObj->create();
+                break;
+            case 'update':
+                $controllerObj->update();
+                break;
+            case 'delete':
+                if ($id) $controllerObj->delete($id);
+                break;
+            default:
+                $controllerObj->index();
+        }
+        break;
+        
+    default:
+        $controllerObj = new ConsultationController();
+        $controllerObj->index();
 }
-
-// Route par défaut - rediriger vers index.html
-if (!$routeFound) {
-    if (file_exists(__DIR__ . '/public/index.html')) {
-        readfile(__DIR__ . '/public/index.html');
-    } else {
-        http_response_code(404);
-        echo "Page non trouvée";
-    }
-}
+?>
