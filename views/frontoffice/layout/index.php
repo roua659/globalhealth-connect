@@ -1,3 +1,24 @@
+<?php
+require_once __DIR__ . '/../../../config/database.php';
+require_once __DIR__ . '/../../../models/Publication.php';
+
+// Fetch only approved publications for frontoffice
+$publications = [];
+try {
+    $pdo = config::getConnexion();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM publication WHERE statut = 'approved' ORDER BY date_publication DESC LIMIT 20");
+        $stmt->execute();
+        $publications = $stmt->fetchAll();
+    } catch (Exception $e) {
+        // Fallback if the statut column does not exist yet
+        $pub = new Publication();
+        $publications = $pub->getAll(20, 0);
+    }
+} catch (Exception $e) {
+    $publications = [];
+}
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -438,6 +459,121 @@
         }
         .empty-state i { font-size: 4rem; margin-bottom: 20px; opacity: 0.3; }
         
+        /* Forum Post Card Styles */
+        .forum-post-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
+            transition: all 0.3s ease;
+            animation: slideIn 0.4s ease-out;
+        }
+        .forum-post-card:hover {
+            box-shadow: 0 10px 35px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .post-author {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .author-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+        .post-author h5 {
+            margin: 0;
+            font-weight: 600;
+            color: var(--medical-text);
+        }
+        .post-content {
+            margin-bottom: 15px;
+            line-height: 1.6;
+            color: var(--medical-text);
+        }
+        .post-image, .post-video {
+            margin: 15px 0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .post-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .action-btn {
+            flex: 1;
+            background: var(--medical-light-blue);
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            color: var(--medical-blue);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .action-btn:hover {
+            background: var(--medical-blue);
+            color: white;
+            transform: scale(1.05);
+        }
+        .post-crud-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .post-crud-btn.edit { color: var(--medical-blue); }
+        .post-crud-btn.edit:hover { background: var(--medical-light-blue); }
+        .post-crud-btn.del { color: #dc3545; }
+        .post-crud-btn.del:hover { background: #fff0f0; }
+        .pub-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .pub-modal-overlay.active { display: flex; }
+        .pub-modal-box {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 90%;
+            max-width: 540px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+        }
+
         .is-invalid {
             border-color: #dc3545 !important;
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
@@ -791,12 +927,145 @@
             </form>
         </div>
         
-        <div id="forumPostsList">
-            <div class="empty-state">
-                <i class="fas fa-newspaper"></i>
-                <p>Aucune publication pour le moment.</p>
-                <small>Les médecins publieront bientôt du contenu.</small>
+        <!-- Bouton Nouvelle Publication -->
+        <div class="text-end mb-4">
+            <button class="btn btn-medical" onclick="openAddModal()">
+                <i class="fas fa-plus me-2"></i>Nouvelle publication
+            </button>
+        </div>
+
+        <!-- Modal Ajout / Modification Publication -->
+        <div class="pub-modal-overlay" id="pubModalOverlay">
+            <div class="pub-modal-box">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 id="pubModalTitle" style="margin:0;font-weight:700;color:var(--medical-dark);"><i class="fas fa-newspaper me-2"></i>Nouvelle publication</h4>
+                    <button onclick="closeModal()" style="background:none;border:none;font-size:1.5rem;line-height:1;cursor:pointer;color:#666;">&times;</button>
+                </div>
+                <form id="pubForm">
+                    <input type="hidden" id="pubFormId">
+                    <div class="mb-3" id="pubFormDoctorWrap">
+                        <label class="form-label fw-semibold">Médecin <span class="text-danger">*</span></label>
+                        <select class="form-select form-control-medical" id="pubFormDoctor">
+                            <option value="">Sélectionnez un médecin</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Contenu <span class="text-danger">*</span></label>
+                        <textarea class="form-control form-control-medical" id="pubFormContent" rows="4" placeholder="Partagez votre expertise médicale..."></textarea>
+                        <div class="invalid-feedback" id="pubContentError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Image (URL)</label>
+                        <input type="text" class="form-control form-control-medical" id="pubFormImage" placeholder="https://...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Vidéo (URL)</label>
+                        <input type="text" class="form-control form-control-medical" id="pubFormVideo" placeholder="https://...">
+                    </div>
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-medical flex-fill" id="pubFormSubmitBtn">
+                            <i class="fas fa-paper-plane me-2"></i>Publier
+                        </button>
+                        <button type="button" onclick="closeModal()" style="background:#f5f7fa;border:none;padding:10px 20px;border-radius:12px;cursor:pointer;font-weight:500;">Annuler</button>
+                    </div>
+                </form>
             </div>
+        </div>
+
+        <div id="forumPostsList">
+            <?php if(count($publications) > 0): ?>
+                <?php foreach($publications as $pub): 
+                    // Get doctor name
+                    $doctorName = 'Dr. Médecin';
+                    if(!empty($pub['id_medecin'])) {
+                        try {
+                            $pdo = config::getConnexion();
+                            $stmt = $pdo->prepare("SELECT nom, prenom FROM utilisateur WHERE id = ?");
+                            $stmt->execute([$pub['id_medecin']]);
+                            $doctor = $stmt->fetch();
+                            if($doctor) {
+                                $doctorName = $doctor['nom'] . ' ' . $doctor['prenom'];
+                            }
+                        } catch(Exception $e) {
+                            $doctorName = 'Dr. Médecin';
+                        }
+                    }
+                ?>
+                    <div class="forum-post-card"
+                         data-pub-id="<?php echo (int)$pub['id_publication']; ?>"
+                         data-content="<?php echo htmlspecialchars($pub['contenu'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                         data-image="<?php echo htmlspecialchars($pub['url_image'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                         data-video="<?php echo htmlspecialchars($pub['url_video'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="post-header">
+                            <div class="post-author">
+                                <div class="author-avatar" style="background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));">
+                                    <?php echo strtoupper(substr($doctorName, 0, 1)); ?>
+                                </div>
+                                <div>
+                                    <h5><?php echo htmlspecialchars($doctorName); ?></h5>
+                                    <small class="text-muted"><?php echo date('d/m/Y H:i', strtotime($pub['date_publication'] ?? 'now')); ?></small>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button class="post-crud-btn edit" title="Modifier" onclick="openEditModal(this)">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="post-crud-btn del" title="Supprimer" onclick="deletePublication(this)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="post-content">
+                            <p><?php echo nl2br(htmlspecialchars(substr($pub['contenu'], 0, 300))); ?>
+                            <?php if(strlen($pub['contenu'] ?? '') > 300): ?>
+                                ...<a href="#" class="text-medical-blue" style="cursor: pointer;"> Lire plus</a>
+                            <?php endif; ?>
+                            </p>
+                        </div>
+                        <?php if(!empty($pub['url_image'])): ?>
+                            <div class="post-image">
+                                <img src="<?php echo htmlspecialchars($pub['url_image']); ?>" alt="Publication image" style="max-width: 100%; border-radius: 12px; max-height: 400px; object-fit: cover;">
+                            </div>
+                        <?php endif; ?>
+                        <?php if(!empty($pub['url_video'])): ?>
+                            <div class="post-video">
+                                <iframe width="100%" height="315" src="<?php echo htmlspecialchars($pub['url_video']); ?>" frameborder="0" allowfullscreen style="border-radius: 12px;"></iframe>
+                            </div>
+                        <?php endif; ?>
+                        <div class="post-actions">
+                            <button class="action-btn" onclick="toggleComments(<?php echo $pub['id_publication']; ?>)"><i class="fas fa-comment"></i> Commenter</button>
+                            <button class="action-btn"><i class="fas fa-heart"></i> J'aime</button>
+                            <button class="action-btn"><i class="fas fa-share"></i> Partager</button>
+                        </div>
+
+                        <!-- Comments Section -->
+                        <div id="comments-section-<?php echo $pub['id_publication']; ?>" class="comments-section mt-4" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 12px;">
+                            <h6 class="mb-3"><i class="fas fa-comments me-2"></i>Commentaires (Pub ID: <?php echo $pub['id_publication']; ?>)</h6>
+                            
+                            <!-- Comment Form -->
+                            <form class="mb-3" onsubmit="submitComment(event, <?php echo (int)$pub['id_publication']; ?>)" style="background: white; padding: 15px; border-radius: 10px;">
+                                <div class="mb-2">
+                                    <textarea class="form-control form-control-medical" id="comment-content-<?php echo $pub['id_publication']; ?>" placeholder="Écrivez votre commentaire..." rows="3" required></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-medical btn-sm">
+                                    <i class="fas fa-paper-plane me-2"></i>Publier
+                                </button>
+                            </form>
+
+                            <!-- Comments List -->
+                            <div id="comments-list-<?php echo $pub['id_publication']; ?>" style="max-height: 400px; overflow-y: auto;">
+                                <div class="text-center text-muted py-3">Chargement des commentaires...</div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-newspaper"></i>
+                    <p>Aucune publication pour le moment.</p>
+                    <small>Les médecins publieront bientôt du contenu.</small>
+                </div>
+            <?php endif; ?>
         </div>
         
         <h3 class="mt-5 mb-4"><i class="fas fa-comments me-2"></i>Avis des patients</h3>
@@ -897,5 +1166,369 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="index.js"></script>
+
+<script>
+// Comment System Functions
+function toggleComments(pubId) {
+    const section = document.getElementById(`comments-section-${pubId}`);
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        loadComments(pubId);
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+async function loadComments(pubId) {
+    const listDiv = document.getElementById(`comments-list-${pubId}`);
+    listDiv.innerHTML = '<div class="text-center text-muted py-3">Chargement...</div>';
+
+    try {
+        const response = await fetch('../../backoffice/layout/backoffice.php?action=get-comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_publication: parseInt(pubId) })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+            listDiv.innerHTML = result.data.map(c => `
+                <div style="background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 3px solid var(--medical-blue);"
+                     data-comment-id="${c.id_commentaire}" data-pub-id="${pubId}">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div style="font-weight:600; color:var(--medical-blue);">
+                            ${escapeHtml(c.nom)} ${escapeHtml(c.prenom)}
+                            <span style="font-size:0.85rem; color:#999; margin-left:10px; font-weight:400;">
+                                ${formatDate(c.date_publication)}
+                            </span>
+                        </div>
+                        <div class="comment-actions" style="display:flex; gap:2px; flex-shrink:0;">
+                            <button onclick="startEditComment(this)" title="Modifier"
+                                style="background:none;border:none;cursor:pointer;color:var(--medical-blue);padding:4px 8px;border-radius:6px;font-size:0.85rem;transition:background 0.2s;"
+                                onmouseover="this.style.background='#e8f4ff'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteCommentFront(this)" title="Supprimer"
+                                style="background:none;border:none;cursor:pointer;color:#dc3545;padding:4px 8px;border-radius:6px;font-size:0.85rem;transition:background 0.2s;"
+                                onmouseover="this.style.background='#fff0f0'" onmouseout="this.style.background='none'">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="comment-text" style="margin-top:8px; color:#333; line-height:1.5;">
+                        ${escapeHtml(c.contenu)}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            listDiv.innerHTML = '<div class="text-center text-muted py-3">Aucun commentaire pour le moment.</div>';
+        }
+    } catch (error) {
+        listDiv.innerHTML = `<div class="alert alert-danger mb-0">Erreur: ${error.message}</div>`;
+        console.error('Error loading comments:', error);
+    }
+}
+
+async function submitComment(event, pubId) {
+    event.preventDefault();
+
+    const contentInput = document.getElementById(`comment-content-${pubId}`);
+    
+    if (!contentInput.value.trim()) {
+        alert('Veuillez écrire un commentaire');
+        return;
+    }
+
+    let userId = 1;
+    try {
+        const userRes = await fetch('../../backoffice/layout/backoffice.php?action=get-users');
+        const userData = await userRes.json();
+        if (userData.success && userData.data && userData.data.length > 0) {
+            userId = userData.data[0].id;
+            console.log('Using user ID:', userId);
+        }
+    } catch (e) {
+        console.warn('Could not fetch users, using default ID');
+    }
+
+    const commentData = {
+        id_publication: parseInt(pubId),
+        id_user: parseInt(userId),
+        contenu: contentInput.value.trim()
+    };
+    
+    console.log('Submitting comment:', commentData);
+
+    try {
+        const response = await fetch('../../backoffice/layout/backoffice.php?action=add-comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(commentData)
+        });
+
+        const result = await response.json();
+        console.log('Response:', result);
+
+        if (result.success) {
+            contentInput.value = '';
+            showFrontNotification('Commentaire publié avec succès !');
+            loadComments(pubId);
+        } else {
+            showFrontNotification('Erreur : ' + (result.error || 'Erreur inconnue'), true);
+        }
+    } catch (error) {
+        showFrontNotification('Erreur réseau : ' + error.message, true);
+        console.error('Error submitting comment:', error);
+    }
+}
+
+// ============ COMMENTAIRES CRUD ============
+
+function startEditComment(btn) {
+    const card = btn.closest('[data-comment-id]');
+    const commentId = card.dataset.commentId;
+    const pubId     = card.dataset.pubId;
+    const textDiv   = card.querySelector('.comment-text');
+    const original  = textDiv.textContent.trim();
+
+    // Masquer les boutons pendant l'édition
+    card.querySelector('.comment-actions').style.display = 'none';
+
+    textDiv.innerHTML = `
+        <textarea id="edit-comment-${commentId}" rows="3"
+            style="width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px;font-family:inherit;font-size:0.95rem;resize:vertical;">${escapeHtml(original)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+            <button onclick="saveEditComment('${commentId}','${pubId}')"
+                style="background:linear-gradient(135deg,#2b7be4,#2ecc71);color:white;border:none;padding:6px 16px;border-radius:10px;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                <i class="fas fa-save me-1"></i>Enregistrer
+            </button>
+            <button onclick="cancelEditComment('${commentId}','${pubId}')"
+                style="background:#f5f7fa;border:none;padding:6px 16px;border-radius:10px;cursor:pointer;font-size:0.85rem;">
+                Annuler
+            </button>
+        </div>
+    `;
+    document.getElementById(`edit-comment-${commentId}`).focus();
+}
+
+async function saveEditComment(commentId, pubId) {
+    const textarea = document.getElementById(`edit-comment-${commentId}`);
+    const contenu  = textarea ? textarea.value.trim() : '';
+
+    if (!contenu || contenu.length < 2) {
+        showFrontNotification('Le commentaire est trop court.', true);
+        return;
+    }
+
+    try {
+        const r = await fetch('../../backoffice/layout/backoffice.php?action=update-comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(commentId), contenu })
+        });
+        const result = await r.json();
+        if (result.success) {
+            showFrontNotification('Commentaire modifié !');
+            loadComments(pubId);
+        } else {
+            showFrontNotification(result.error || 'Erreur lors de la modification', true);
+        }
+    } catch (err) {
+        showFrontNotification('Erreur réseau : ' + err.message, true);
+    }
+}
+
+function cancelEditComment(commentId, pubId) {
+    loadComments(pubId);
+}
+
+async function deleteCommentFront(btn) {
+    const card      = btn.closest('[data-comment-id]');
+    const commentId = card.dataset.commentId;
+    const pubId     = card.dataset.pubId;
+
+    if (!confirm('Supprimer ce commentaire ?')) return;
+
+    try {
+        const r = await fetch('../../backoffice/layout/backoffice.php?action=delete-comment-db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(commentId) })
+        });
+        const result = await r.json();
+        if (result.success) {
+            showFrontNotification('Commentaire supprimé.');
+            loadComments(pubId);
+        } else {
+            showFrontNotification(result.error || 'Erreur lors de la suppression', true);
+        }
+    } catch (err) {
+        showFrontNotification('Erreur réseau : ' + err.message, true);
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Date inconnue';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ============ PUBLICATIONS CRUD ============
+
+async function loadDoctorsForForm() {
+    const select = document.getElementById('pubFormDoctor');
+    if (select.options.length > 1) return;
+    select.innerHTML = '<option value="">Chargement...</option>';
+    try {
+        const r = await fetch('../../backoffice/layout/backoffice.php?action=get-doctors');
+        const result = await r.json();
+        if (result.success && result.data && result.data.length > 0) {
+            select.innerHTML = '<option value="">Sélectionnez un médecin</option>' +
+                result.data.map(d => `<option value="${d.id}">${escapeHtml(d.prenom)} ${escapeHtml(d.nom)}</option>`).join('');
+        } else {
+            select.innerHTML = '<option value="">Aucun médecin disponible</option>';
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">Erreur de chargement</option>';
+    }
+}
+
+function openAddModal() {
+    document.getElementById('pubModalTitle').innerHTML = '<i class="fas fa-newspaper me-2"></i>Nouvelle publication';
+    document.getElementById('pubFormSubmitBtn').innerHTML = '<i class="fas fa-paper-plane me-2"></i>Publier';
+    document.getElementById('pubFormId').value = '';
+    document.getElementById('pubFormContent').value = '';
+    document.getElementById('pubFormImage').value = '';
+    document.getElementById('pubFormVideo').value = '';
+    document.getElementById('pubFormDoctorWrap').style.display = '';
+    document.getElementById('pubFormContent').classList.remove('is-invalid');
+    document.getElementById('pubModalOverlay').classList.add('active');
+    loadDoctorsForForm();
+}
+
+function openEditModal(btn) {
+    const card = btn.closest('.forum-post-card');
+    const pubId   = card.dataset.pubId;
+    const content = card.dataset.content;
+    const image   = card.dataset.image;
+    const video   = card.dataset.video;
+
+    document.getElementById('pubModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Modifier la publication';
+    document.getElementById('pubFormSubmitBtn').innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer';
+    document.getElementById('pubFormId').value = pubId;
+    document.getElementById('pubFormContent').value = content;
+    document.getElementById('pubFormImage').value = image || '';
+    document.getElementById('pubFormVideo').value = video || '';
+    document.getElementById('pubFormDoctorWrap').style.display = 'none';
+    document.getElementById('pubFormContent').classList.remove('is-invalid');
+    document.getElementById('pubModalOverlay').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('pubModalOverlay').classList.remove('active');
+}
+
+document.getElementById('pubModalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+document.getElementById('pubForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const pubId   = document.getElementById('pubFormId').value;
+    const content = document.getElementById('pubFormContent').value.trim();
+    const image   = document.getElementById('pubFormImage').value.trim();
+    const video   = document.getElementById('pubFormVideo').value.trim();
+    const doctorId = document.getElementById('pubFormDoctor').value;
+
+    const contentEl = document.getElementById('pubFormContent');
+    if (!content || content.length < 10) {
+        contentEl.classList.add('is-invalid');
+        document.getElementById('pubContentError').textContent = 'Le contenu doit contenir au moins 10 caractères.';
+        return;
+    }
+    contentEl.classList.remove('is-invalid');
+
+    if (!pubId && !doctorId) {
+        showFrontNotification('Veuillez sélectionner un médecin.', true);
+        return;
+    }
+
+    const submitBtn = document.getElementById('pubFormSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>En cours...';
+
+    try {
+        let url, body;
+        if (pubId) {
+            url  = '../../backoffice/layout/backoffice.php?action=update-publication';
+            body = { id: parseInt(pubId), contenu: content, url_image: image || null, url_video: video || null };
+        } else {
+            url  = '../../backoffice/layout/backoffice.php?action=add-publication';
+            body = { id_medecin: parseInt(doctorId), contenu: content, url_image: image || null, url_video: video || null };
+        }
+
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const result = await r.json();
+
+        if (result.success) {
+            closeModal();
+            showFrontNotification(pubId ? 'Publication modifiée avec succès !' : 'Publication ajoutée avec succès !');
+            setTimeout(() => window.location.reload(), 900);
+        } else {
+            showFrontNotification(result.error || 'Erreur lors de l\'opération', true);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = pubId
+                ? '<i class="fas fa-save me-2"></i>Enregistrer'
+                : '<i class="fas fa-paper-plane me-2"></i>Publier';
+        }
+    } catch (err) {
+        showFrontNotification('Erreur réseau : ' + err.message, true);
+        submitBtn.disabled = false;
+    }
+});
+
+async function deletePublication(btn) {
+    const pubId = btn.closest('.forum-post-card').dataset.pubId;
+    if (!confirm('Supprimer cette publication ? Cette action est irréversible.')) return;
+    try {
+        const r = await fetch('../../backoffice/layout/backoffice.php?action=delete-publication', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(pubId) })
+        });
+        const result = await r.json();
+        if (result.success) {
+            showFrontNotification('Publication supprimée.');
+            setTimeout(() => window.location.reload(), 900);
+        } else {
+            showFrontNotification(result.error || 'Erreur lors de la suppression', true);
+        }
+    } catch (err) {
+        showFrontNotification('Erreur réseau : ' + err.message, true);
+    }
+}
+
+function showFrontNotification(msg, isError = false) {
+    const toast = document.getElementById('notificationToast');
+    toast.textContent = msg;
+    toast.style.borderLeftColor = isError ? '#dc3545' : 'var(--medical-green)';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
+
 </body>
 </html>
