@@ -4,8 +4,8 @@ session_start();
 // Autoloader simple
 spl_autoload_register(function ($class) {
     $paths = [
-        __DIR__ . '/app/controllers/',
-        __DIR__ . '/app/models/',
+        __DIR__ . '/controllers/',
+        __DIR__ . '/models/',
         __DIR__ . '/config/'
     ];
     foreach ($paths as $path) {
@@ -20,29 +20,20 @@ spl_autoload_register(function ($class) {
 // Configuration des routes
 $routes = [
     // Routes existantes (vers vos fichiers HTML)
-    '' => ['type' => 'file', 'path' => 'public/index.html'],
-    'index.html' => ['type' => 'file', 'path' => 'public/index.html'],
-    'backoffice.html' => ['type' => 'file', 'path' => 'public/backoffice.html'],
+    '' => ['type' => 'file', 'path' => 'views/frontoffice/layout/index.php'],
+    'index.php' => ['type' => 'file', 'path' => 'views/frontoffice/layout/index.php'],
+    'backoffice.php' => ['type' => 'file', 'path' => 'views/backoffice/layout/backoffice.php'],
     
-    // Routes API pour AJAX (encapsule votre JS existant)
-    'api/login' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'login'],
-    'api/logout' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'logout'],
-    'api/getDoctors' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getDoctors'],
-    'api/getReviews' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getReviews'],
-    'api/submitAppointment' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'submitAppointment'],
-    'api/submitReview' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'submitReview'],
-    'api/getStats' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'getStats'],
-    
-    // Routes backoffice CRUD
-    'api/users/add' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'addUser'],
-    'api/users/edit' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'editUser'],
-    'api/users/delete' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'deleteUser'],
-    'api/appointments/add' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'addAppointment'],
-    'api/appointments/confirm' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'confirmPayment'],
-    'api/reviews/approve' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'approveReview'],
-    'api/reviews/report' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'reportReview'],
-    'api/reviews/delete' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'deleteReview'],
-    'api/reviews/notify' => ['type' => 'controller', 'controller' => 'LegacyController', 'action' => 'notifyPatient'],
+    // Routes API User
+    'api/users/list' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'list'],
+    'api/users/doctors' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'doctors'],
+    'api/users/create' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'create'],
+    'api/users/update' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'update'],
+    'api/users/delete' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'delete'],
+    'api/users/register-patient' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'registerPatient'],
+    'api/users/login-patient' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'loginPatient'],
+    'api/users/reset-password' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'resetPassword'],
+    'api/users/get-current-user' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'getCurrentUser'],
 ];
 
 // Récupérer l'URL
@@ -60,9 +51,8 @@ foreach ($routes as $route => $config) {
             $filePath = __DIR__ . '/' . $config['path'];
             if (file_exists($filePath)) {
                 $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-                if ($ext === 'html') {
-                    // Lire et inclure le fichier en conservant le JS
-                    readfile($filePath);
+                if ($ext === 'php') {
+                    require $filePath;
                 } else {
                     header('Content-Type: ' . mime_content_type($filePath));
                     readfile($filePath);
@@ -84,8 +74,8 @@ foreach ($routes as $route => $config) {
 
 // Route par défaut - rediriger vers index.html
 if (!$routeFound) {
-    if (file_exists(__DIR__ . '/public/index.html')) {
-        readfile(__DIR__ . '/public/index.html');
+    if (file_exists(__DIR__ . '/views/frontoffice/layout/index.php')) {
+        readfile(__DIR__ . '/views/frontoffice/layout/index.php');
     } else {
         http_response_code(404);
         echo "Page non trouvée";
