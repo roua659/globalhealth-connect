@@ -1,0 +1,676 @@
+/* ============================================
+   GlobalHealth Connect - Styles Principaux
+   ============================================ */
+
+:root {
+    --medical-white: #ffffff;
+    --medical-blue: #2b7be4;
+    --medical-light-blue: #e8f4ff;
+    --medical-green: #2ecc71;
+    --medical-light-green: #e8f8f0;
+    --medical-dark: #1a2b3c;
+    --medical-gray: #f5f7fa;
+    --medical-text: #2c3e50;
+    --medical-red: #e74c3c;
+    --medical-orange: #f39c12;
+    --medical-purple: #9b59b6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    background: var(--medical-gray);
+    color: var(--medical-text);
+    overflow-x: hidden;
+}
+
+/* ========== ANIMATIONS ========== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-15px);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.animate-fade-up {
+    animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.animate-fade {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}
+
+/* ========== NAVBAR ========== */
+.navbar {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+    padding: 1rem 0;
+    transition: all 0.3s;
+}
+
+.navbar-scrolled {
+    padding: 0.5rem 0;
+    box-shadow: 0 5px 30px rgba(0, 0, 0, 0.1);
+}
+
+.logo-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.3rem;
+}
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ========== BOUTONS ========== */
+.btn-medical {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    border: none;
+    padding: 10px 28px;
+    border-radius: 40px;
+    color: white;
+    font-weight: 600;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(43, 123, 228, 0.3);
+}
+
+.btn-medical:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(43, 123, 228, 0.4);
+    color: white;
+}
+
+.btn-outline-medical {
+    background: transparent;
+    border: 2px solid var(--medical-blue);
+    color: var(--medical-blue);
+    padding: 8px 24px;
+    border-radius: 40px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.btn-outline-medical:hover {
+    background: var(--medical-blue);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-danger-outline {
+    background: transparent;
+    border: 2px solid var(--medical-red);
+    color: var(--medical-red);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    transition: all 0.3s;
+}
+
+.btn-danger-outline:hover {
+    background: var(--medical-red);
+    color: white;
+}
+
+.btn-success-outline {
+    background: transparent;
+    border: 2px solid var(--medical-green);
+    color: var(--medical-green);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    transition: all 0.3s;
+}
+
+.btn-success-outline:hover {
+    background: var(--medical-green);
+    color: white;
+}
+
+/* ========== CARTES ========== */
+.card-medical {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: all 0.3s;
+    margin-bottom: 25px;
+}
+
+.card-medical:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+}
+
+.card-header-medical {
+    background: linear-gradient(135deg, var(--medical-light-blue), white);
+    padding: 20px 25px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+}
+
+.card-body-medical {
+    padding: 20px 25px;
+}
+
+.card-footer-medical {
+    padding: 15px 25px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background: var(--medical-gray);
+}
+
+/* ========== FORMULAIRES ========== */
+.form-control-medical {
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 12px 16px;
+    transition: all 0.3s;
+}
+
+.form-control-medical:focus {
+    border-color: var(--medical-blue);
+    box-shadow: 0 0 0 3px rgba(43, 123, 228, 0.1);
+    outline: none;
+}
+
+.form-label-medical {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--medical-dark);
+}
+
+/* Validation */
+.is-invalid {
+    border-color: var(--medical-red) !important;
+}
+
+.is-valid {
+    border-color: var(--medical-green) !important;
+}
+
+.invalid-feedback {
+    color: var(--medical-red);
+    font-size: 0.8rem;
+    margin-top: 5px;
+}
+
+/* ========== TABLEAUX ========== */
+.table-medical {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-medical thead th {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    color: white;
+    padding: 15px;
+    font-weight: 600;
+    border: none;
+}
+
+.table-medical thead th:first-child {
+    border-radius: 12px 0 0 0;
+}
+
+.table-medical thead th:last-child {
+    border-radius: 0 12px 0 0;
+}
+
+.table-medical tbody tr {
+    transition: all 0.3s;
+}
+
+.table-medical tbody tr:hover {
+    background: var(--medical-light-blue);
+}
+
+.table-medical tbody td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+/* ========== STATISTIQUES ========== */
+.stat-card {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--medical-light-blue), white);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    font-size: 1.8rem;
+    color: var(--medical-blue);
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--medical-dark);
+}
+
+.stat-label {
+    color: #6c7a8a;
+    font-size: 0.9rem;
+}
+
+/* ========== MODALES ========== */
+.modal-content {
+    border-radius: 24px;
+    border: none;
+}
+
+.modal-header {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    color: white;
+    border-radius: 24px 24px 0 0;
+    padding: 20px 25px;
+}
+
+.modal-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.modal-footer {
+    border-top: 1px solid #eee;
+    padding: 20px 25px;
+}
+
+/* ========== DOSSIER MÉDICAL ========== */
+.medical-folder-card {
+    background: linear-gradient(135deg, var(--medical-light-blue), white);
+    border-radius: 24px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 1px solid rgba(43, 123, 228, 0.2);
+}
+
+.file-upload-area {
+    border: 2px dashed var(--medical-blue);
+    border-radius: 20px;
+    padding: 30px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.file-upload-area:hover {
+    background: rgba(43, 123, 228, 0.05);
+    border-color: var(--medical-green);
+}
+
+/* ========== CHATBOT ========== */
+.chatbot-container {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    z-index: 1000;
+}
+
+.chatbot-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 5px 25px rgba(43, 123, 228, 0.4);
+    transition: all 0.3s;
+    color: white;
+}
+
+.chatbot-toggle:hover {
+    transform: scale(1.05);
+    animation: pulse 0.5s ease;
+}
+
+.chatbot-window {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 380px;
+    height: 500px;
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chatbot-window.show {
+    display: flex;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.chatbot-header {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    padding: 18px;
+    text-align: center;
+    color: white;
+}
+
+.chatbot-messages {
+    flex: 1;
+    padding: 18px;
+    overflow-y: auto;
+    background: var(--medical-gray);
+}
+
+.message {
+    margin-bottom: 12px;
+    padding: 10px 16px;
+    border-radius: 20px;
+    max-width: 85%;
+    word-wrap: break-word;
+}
+
+.message.user {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    color: white;
+    margin-left: auto;
+    text-align: right;
+}
+
+.message.bot {
+    background: white;
+    color: var(--medical-text);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.chatbot-input {
+    display: flex;
+    padding: 12px;
+    background: white;
+    border-top: 1px solid #eee;
+}
+
+.chatbot-input input {
+    flex: 1;
+    border: 1px solid #e0e0e0;
+    padding: 12px 16px;
+    border-radius: 30px;
+    outline: none;
+}
+
+.chatbot-input button {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    border: none;
+    border-radius: 50%;
+    width: 45px;
+    margin-left: 10px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.chatbot-input button:hover {
+    transform: scale(1.05);
+}
+
+/* ========== NOTIFICATIONS ========== */
+.notification-toast {
+    position: fixed;
+    bottom: 25px;
+    left: 25px;
+    background: white;
+    padding: 14px 24px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    transform: translateX(-450px);
+    transition: transform 0.3s;
+    z-index: 1001;
+    border-left: 4px solid var(--medical-green);
+    font-weight: 500;
+}
+
+.notification-toast.show {
+    transform: translateX(0);
+}
+
+.notification-toast.error {
+    border-left-color: var(--medical-red);
+}
+
+.notification-toast.warning {
+    border-left-color: var(--medical-orange);
+}
+
+/* ========== ÉTATS VIDES ========== */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c7a8a;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    opacity: 0.3;
+}
+
+/* ========== RATING ÉTOILES ========== */
+.rating-input {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.rating-input input {
+    display: none;
+}
+
+.rating-input label {
+    font-size: 2rem;
+    color: #ddd;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.rating-input label:hover,
+.rating-input label:hover~label,
+.rating-input input:checked~label {
+    color: #ffc107;
+}
+
+/* ========== BADGES ========== */
+.badge-medical {
+    background: var(--medical-light-blue);
+    color: var(--medical-blue);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.badge-status-confirme {
+    background: #d4edda;
+    color: #155724;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+}
+
+.badge-status-annule {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+}
+
+.badge-status-en-attente {
+    background: #fff3cd;
+    color: #856404;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+    .chatbot-window {
+        width: 320px;
+        right: -50px;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .table-medical {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .modal-dialog {
+        margin: 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 0 15px;
+    }
+    
+    .card-header-medical,
+    .card-body-medical {
+        padding: 15px;
+    }
+}
+
+/* ========== LOADER ========== */
+.loader {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ========== UTILITAIRES ========== */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.bg-gradient {
+    background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+}
+
+.shadow-hover {
+    transition: all 0.3s;
+}
+
+.shadow-hover:hover {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
