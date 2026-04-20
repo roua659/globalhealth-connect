@@ -158,5 +158,6 @@ class ConsultationModel {
         
         return $stats;
     }
+
 }
 ?>

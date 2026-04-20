@@ -180,8 +180,10 @@
         <div class="logo-icon me-3"><i class="fas fa-heartbeat"></i></div>
         <div><strong style="font-size:1.3rem;">GlobalHealth</strong><br><small>Backoffice Médical</small></div>
         <div class="nav-links">
-            <a href="?controller=consultation" class="<?php echo $_GET['controller'] ?? 'consultation' == 'consultation' ? 'active' : ''; ?>"><i class="fas fa-stethoscope me-1"></i>Consultations</a>
-            <a href="?controller=suivie" class="<?php echo ($_GET['controller'] ?? '') == 'suivie' ? 'active' : ''; ?>"><i class="fas fa-chart-line me-1"></i>Suivis</a>
+            <a href="?controller=admin"><i class="fas fa-home me-1"></i>Dashboard</a>
+            <a href="?controller=consultation" class="active"><i class="fas fa-stethoscope me-1"></i>Consultations</a>
+            <a href="?controller=suivie"><i class="fas fa-chart-line me-1"></i>Suivis</a>
+            <a href="?controller=auth&action=logout" style="color:#e74c3c;background:#ffeaea;"><i class="fas fa-sign-out-alt me-1"></i>Déconnexion</a>
         </div>
     </div>
 </div>

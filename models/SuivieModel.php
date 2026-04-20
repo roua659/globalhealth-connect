@@ -228,5 +228,6 @@ class SuivieModel {
         
         return $stats;
     }
+
 }
 ?>
