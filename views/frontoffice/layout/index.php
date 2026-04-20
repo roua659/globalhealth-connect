@@ -943,11 +943,12 @@ try {
                 </div>
                 <form id="pubForm">
                     <input type="hidden" id="pubFormId">
-                    <div class="mb-3" id="pubFormDoctorWrap">
-                        <label class="form-label fw-semibold">Médecin <span class="text-danger">*</span></label>
-                        <select class="form-select form-control-medical" id="pubFormDoctor">
-                            <option value="">Sélectionnez un médecin</option>
-                        </select>
+                    <input type="hidden" id="pubFormAuthorId">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nom et Prénom</label>
+                        <div class="form-control form-control-medical" style="background: #f9f9f9; display: flex; align-items: center;">
+                            <span id="pubFormAuthorFullName" style="color: var(--medical-dark); font-weight: 500;"></span>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Contenu <span class="text-danger">*</span></label>
@@ -1165,7 +1166,7 @@ try {
 <div class="notification-toast" id="notificationToast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="index.js"></script>
+<script src="index.js?v=<?php echo time(); ?>"></script>
 
 <script>
 // Comment System Functions
@@ -1382,21 +1383,62 @@ function formatDate(dateString) {
 
 // ============ PUBLICATIONS CRUD ============
 
-async function loadDoctorsForForm() {
-    const select = document.getElementById('pubFormDoctor');
-    if (select.options.length > 1) return;
-    select.innerHTML = '<option value="">Chargement...</option>';
+async function loadCurrentUserForForm() {
+    console.log('🔄 Chargement de l\'utilisateur actuel...');
     try {
-        const r = await fetch('../../backoffice/layout/backoffice.php?action=get-doctors');
-        const result = await r.json();
-        if (result.success && result.data && result.data.length > 0) {
-            select.innerHTML = '<option value="">Sélectionnez un médecin</option>' +
-                result.data.map(d => `<option value="${d.id}">${escapeHtml(d.prenom)} ${escapeHtml(d.nom)}</option>`).join('');
+        let currentUser = null;
+        
+        // Essayer d'abord le sessionStorage
+        if (typeof sessionStorage !== 'undefined') {
+            const stored = sessionStorage.getItem('currentUser');
+            if (stored) {
+                try {
+                    currentUser = JSON.parse(stored);
+                    console.log('✅ Utilisateur trouvé en cache:', currentUser);
+                } catch (e) {
+                    console.warn('⚠️ Erreur lors du parsing du cache:', e);
+                }
+            }
+        }
+        
+        // Si pas en cache, récupérer du serveur
+        if (!currentUser) {
+            console.log('📡 Appel API get-current-user...');
+            const userRes = await fetch('../../backoffice/layout/backoffice.php?action=get-current-user');
+            const userData = await userRes.json();
+            console.log('📨 Réponse API:', userData);
+            
+            if (userData.success && userData.data) {
+                currentUser = userData.data;
+                if (typeof sessionStorage !== 'undefined') {
+                    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                }
+                console.log('✅ Utilisateur chargé du serveur:', currentUser);
+            } else {
+                console.error('❌ Erreur API:', userData.error);
+            }
+        }
+        
+        // Remplir le formulaire avec les données de l'utilisateur
+        if (currentUser && currentUser.id) {
+            const nom = currentUser.nom || '';
+            const prenom = currentUser.prenom || '';
+            const fullName = (nom + ' ' + prenom).trim() || '(Non défini)';
+            
+            console.log('📝 Remplissage du formulaire avec:', { fullName, id: currentUser.id });
+            
+            document.getElementById('pubFormAuthorId').value = currentUser.id;
+            document.getElementById('pubFormAuthorFullName').textContent = fullName;
+            
+            console.log('✅ Formulaire rempli avec succès');
         } else {
-            select.innerHTML = '<option value="">Aucun médecin disponible</option>';
+            console.error('❌ Pas d\'utilisateur trouvé');
+            document.getElementById('pubFormAuthorFullName').textContent = 'Erreur: non connecté';
         }
     } catch (e) {
-        select.innerHTML = '<option value="">Erreur de chargement</option>';
+        console.error('❌ Erreur lors du chargement de l\'utilisateur:', e);
+        document.getElementById('pubFormAuthorLastName').textContent = 'Erreur';
+        document.getElementById('pubFormAuthorFirstName').textContent = e.message;
     }
 }
 
@@ -1407,10 +1449,9 @@ function openAddModal() {
     document.getElementById('pubFormContent').value = '';
     document.getElementById('pubFormImage').value = '';
     document.getElementById('pubFormVideo').value = '';
-    document.getElementById('pubFormDoctorWrap').style.display = '';
     document.getElementById('pubFormContent').classList.remove('is-invalid');
     document.getElementById('pubModalOverlay').classList.add('active');
-    loadDoctorsForForm();
+    loadCurrentUserForForm();
 }
 
 function openEditModal(btn) {
@@ -1426,7 +1467,6 @@ function openEditModal(btn) {
     document.getElementById('pubFormContent').value = content;
     document.getElementById('pubFormImage').value = image || '';
     document.getElementById('pubFormVideo').value = video || '';
-    document.getElementById('pubFormDoctorWrap').style.display = 'none';
     document.getElementById('pubFormContent').classList.remove('is-invalid');
     document.getElementById('pubModalOverlay').classList.add('active');
 }
@@ -1445,7 +1485,7 @@ document.getElementById('pubForm').addEventListener('submit', async function(e) 
     const content = document.getElementById('pubFormContent').value.trim();
     const image   = document.getElementById('pubFormImage').value.trim();
     const video   = document.getElementById('pubFormVideo').value.trim();
-    const doctorId = document.getElementById('pubFormDoctor').value;
+    const authorId = document.getElementById('pubFormAuthorId').value;
 
     const contentEl = document.getElementById('pubFormContent');
     if (!content || content.length < 10) {
@@ -1455,8 +1495,8 @@ document.getElementById('pubForm').addEventListener('submit', async function(e) 
     }
     contentEl.classList.remove('is-invalid');
 
-    if (!pubId && !doctorId) {
-        showFrontNotification('Veuillez sélectionner un médecin.', true);
+    if (!pubId && !authorId) {
+        showFrontNotification('Erreur: Utilisateur non identifié. Veuillez recharger la page.', true);
         return;
     }
 
@@ -1471,7 +1511,7 @@ document.getElementById('pubForm').addEventListener('submit', async function(e) 
             body = { id: parseInt(pubId), contenu: content, url_image: image || null, url_video: video || null };
         } else {
             url  = '../../backoffice/layout/backoffice.php?action=add-publication';
-            body = { id_medecin: parseInt(doctorId), contenu: content, url_image: image || null, url_video: video || null };
+            body = { id_medecin: parseInt(authorId), contenu: content, url_image: image || null, url_video: video || null };
         }
 
         const r = await fetch(url, {

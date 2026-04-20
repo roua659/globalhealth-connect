@@ -86,9 +86,15 @@ class PublicationController extends BaseController {
     /**
      * Create new publication
      * POST /api/publications.php?action=store
+     * Can be created by both doctors and patients
      */
     public function store() {
         try {
+            // Start session if not already started
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+
             $data = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
             // Validation
@@ -96,12 +102,15 @@ class PublicationController extends BaseController {
                 return $this->jsonResponse(['success' => false, 'error' => 'Content must be at least 10 characters'], 400);
             }
 
-            if (empty($data['id_medecin'])) {
-                return $this->jsonResponse(['success' => false, 'error' => 'Doctor ID is required'], 400);
+            // Use provided id_medecin or fall back to session user ID
+            $userId = $data['id_medecin'] ?? $_SESSION['user_id'] ?? null;
+            
+            if (empty($userId)) {
+                return $this->jsonResponse(['success' => false, 'error' => 'User must be logged in'], 401);
             }
 
             $publication = new Publication();
-            $publication->setIdMedecin($data['id_medecin']);
+            $publication->setIdMedecin($userId);
             $publication->setContenu($data['contenu']);
             $publication->setDatePublication(date('Y-m-d H:i:s'));
             

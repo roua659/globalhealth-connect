@@ -3,6 +3,11 @@ require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../models/Publication.php';
 require_once __DIR__ . '/../../../models/Commentaire.php';
 
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Ensure 'statut' column exists in publication table (run once)
 try {
     $pdo_init = config::getConnexion();
@@ -28,12 +33,12 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                 exit;
             }
 
-            // Validate doctor exists
+            // Validate user exists (médecin ou patient)
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE id = ? AND id_role = 2");
+            $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE id = ?");
             $stmt->execute([$input['id_medecin']]);
             if (!$stmt->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'Le médecin sélectionné n\'existe pas']);
+                echo json_encode(['success' => false, 'error' => 'L\'utilisateur sélectionné n\'existe pas']);
                 exit;
             }
 
@@ -180,6 +185,36 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
             $stmt->execute();
             $doctors = $stmt->fetchAll();
             echo json_encode(['success' => true, 'data' => $doctors]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    // Handle get current user
+    if ($action === 'get-current-user') {
+        try {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            
+            $userId = $_SESSION['user_id'] ?? null;
+            if (!$userId) {
+                echo json_encode(['success' => false, 'error' => 'Utilisateur non connecté']);
+                exit;
+            }
+
+            $pdo = config::getConnexion();
+            $stmt = $pdo->prepare("SELECT id, nom, prenom, email, id_role FROM utilisateur WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch();
+
+            if ($user) {
+                echo json_encode(['success' => true, 'data' => $user]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Utilisateur non trouvé']);
+            }
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -368,6 +403,73 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
             }
             
             echo json_encode(['success' => true, 'data' => $users]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    // Handle add user/doctor
+    if ($action === 'add-user-db') {
+        try {
+            if (empty($input['name']) || empty($input['email'])) {
+                echo json_encode(['success' => false, 'error' => 'Nom et Email obligatoires']);
+                exit;
+            }
+
+            $pdo = config::getConnexion();
+            
+            // Check if email already exists
+            $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE email = ?");
+            $stmt->execute([$input['email']]);
+            if ($stmt->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Cet email existe déjà']);
+                exit;
+            }
+
+            // Determine role ID
+            $roleId = 3; // Default: patient/user
+            if ($input['role'] === 'doctor') {
+                $roleId = 2; // Doctor
+            } elseif ($input['role'] === 'admin') {
+                $roleId = 1; // Admin
+            }
+
+            // Split name into nom and prenom
+            $names = explode(' ', $input['name'], 2);
+            $prenom = array_pop($names);
+            $nom = array_pop($names) ?: $prenom;
+
+            // Insert into database
+            $stmt = $pdo->prepare("
+                INSERT INTO utilisateur (nom, prenom, email, telephone, password, id_role, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ");
+            
+            $password = password_hash($input['password'] ?? 'password123', PASSWORD_DEFAULT);
+            $stmt->execute([
+                $nom,
+                $prenom,
+                $input['email'],
+                $input['phone'] ?? null,
+                $password,
+                $roleId
+            ]);
+
+            $userId = $pdo->lastInsertId();
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Utilisateur créé avec succès en base de données',
+                'id' => $userId,
+                'data' => [
+                    'id' => $userId,
+                    'nom' => $nom,
+                    'prenom' => $prenom,
+                    'email' => $input['email']
+                ]
+            ]);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -1340,7 +1442,53 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
     }
     
     // ==================== AUTRES CRUD ====================
-    document.getElementById('addUserForm')?.addEventListener('submit', (e) => { if(validateAddUser()) { const newUser = { id: Date.now(), name: document.getElementById('newUserName').value, email: document.getElementById('newUserEmail').value, phone: document.getElementById('newUserPhone').value, role: document.getElementById('newUserRole').value, specialty: document.getElementById('newUserSpecialty').value || null, status: 'active' }; usersData.push(newUser); saveUsers(); syncWithFrontoffice(); bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide(); document.getElementById('addUserForm').reset(); showNotification(`Utilisateur ${newUser.name} ajouté`); refreshModule(); } });
+    document.getElementById('addUserForm')?.addEventListener('submit', async (e) => { 
+        e.preventDefault();
+        if(validateAddUser()) { 
+            const newUser = { 
+                name: document.getElementById('newUserName').value, 
+                email: document.getElementById('newUserEmail').value, 
+                phone: document.getElementById('newUserPhone').value, 
+                role: document.getElementById('newUserRole').value, 
+                password: 'password123'
+            };
+            
+            try {
+                const response = await fetch(window.location.pathname + '?action=add-user-db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newUser)
+                });
+                
+                const result = await response.json();
+                
+                if(result.success) {
+                    // Add to local array
+                    const userWithId = { 
+                        id: result.data.id, 
+                        name: newUser.name, 
+                        email: newUser.email, 
+                        phone: newUser.phone, 
+                        role: newUser.role, 
+                        specialty: document.getElementById('newUserSpecialty')?.value || null, 
+                        status: 'active' 
+                    };
+                    usersData.push(userWithId);
+                    saveUsers();
+                    syncWithFrontoffice();
+                    bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+                    document.getElementById('addUserForm').reset();
+                    showNotification(`✓ Utilisateur ${newUser.name} ajouté en base de données`);
+                    refreshModule();
+                } else {
+                    showNotification(result.error || 'Erreur lors de l\'ajout', true);
+                }
+            } catch(error) {
+                console.error('Erreur:', error);
+                showNotification('Erreur: ' + error.message, true);
+            }
+        } 
+    });
     document.getElementById('editUserForm')?.addEventListener('submit', (e) => { if(validateEditUser()) { const id = parseInt(document.getElementById('editUserId').value); const user = usersData.find(u => u.id === id); if(user) { user.name = document.getElementById('editUserName').value; user.email = document.getElementById('editUserEmail').value; user.phone = document.getElementById('editUserPhone').value; if(user.role === 'doctor') user.specialty = document.getElementById('editUserSpecialty').value; saveUsers(); syncWithFrontoffice(); showNotification(`Utilisateur ${user.name} modifié`); bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide(); refreshModule(); } } });
     let isSubmittingPost = false;
     document.getElementById('addPostForm')?.addEventListener('submit', async (e) => { 
