@@ -34,6 +34,10 @@ $routes = [
     'api/users/login-patient' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'loginPatient'],
     'api/users/reset-password' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'resetPassword'],
     'api/users/get-current-user' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'getCurrentUser'],
+    // Nouvelles routes métier
+    'api/users/search'     => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'search'],
+    'api/users/stats'      => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'stats'],
+    'api/users/export-pdf' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'exportPdf'],
 ];
 
 // Récupérer l'URL

@@ -293,6 +293,15 @@ $usersApiBase = gh_users_api_base();
             margin-bottom: 10px;
             color: var(--medical-blue);
         }
+
+        /* ── Colonnes triables ── */
+        .data-table th[onclick] { transition: background .15s; }
+        .data-table th[onclick]:hover { background: #d0e8ff; color: var(--medical-blue); }
+        .data-table th[onclick]:active { background: #b8d8ff; }
+
+        /* ── Donut stats ── */
+        .stat-donut-wrap { display:flex; justify-content:center; margin-bottom:10px; }
+        .stat-donut-wrap svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.08)); }
     </style>
 </head>
 <body>
@@ -590,17 +599,333 @@ $usersApiBase = gh_users_api_base();
         return unit === 'kg' ? `${n} kg` : unit === 'm' ? `${n} m` : String(n);
     }
     
-    function showStats(moduleName) {
-        showNotification(`📊 Statistiques - ${moduleName} (Fonctionnalité à venir)`);
+    // =========================================================
+    // ÉTAT GLOBAL : filtres et tri actifs (partagés entre search + export)
+    // =========================================================
+    let activeFilters   = {};
+    let activeSortField = 'id_user';
+    let activeSortDir   = 'DESC';
+
+    // =========================================================
+    // STATISTIQUES — appel API réel
+    // =========================================================
+    async function showStats(moduleName) {
+        if (moduleName !== 'Utilisateurs') {
+            showNotification(`📊 Statistiques - ${moduleName}`);
+            return;
+        }
+        try {
+            const stats = await apiRequest('stats', 'GET');
+            renderUserStatsModal(stats);
+        } catch (err) {
+            showNotification(`Erreur stats: ${err.message}`, true);
+        }
     }
-    
-    function exportToPDF(elementId, filename) {
+
+    // ── Helpers SVG donut ──────────────────────────────────────
+    function buildDonutSVG(segments, size = 120) {
+        // segments = [{value, color, label}]
+        const total = segments.reduce((s, x) => s + x.value, 0);
+        if (total === 0) return `<svg width="${size}" height="${size}"><text x="50%" y="54%" text-anchor="middle" fill="#aaa" font-size="12">—</text></svg>`;
+        const r = 46, cx = size / 2, cy = size / 2;
+        const circ = 2 * Math.PI * r;
+        let offset = 0;
+        let paths = '';
+        segments.forEach(seg => {
+            const pct   = seg.value / total;
+            const dash  = pct * circ;
+            const gap   = circ - dash;
+            paths += `<circle cx="${cx}" cy="${cy}" r="${r}"
+                fill="none" stroke="${seg.color}" stroke-width="22"
+                stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+                stroke-dashoffset="${(-offset * circ).toFixed(2)}"
+                transform="rotate(-90 ${cx} ${cy})"/>`;
+            offset += pct;
+        });
+        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f0f0f0" stroke-width="22"/>
+            ${paths}
+            <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="13" font-weight="700" fill="#2c3e50">${total}</text>
+            <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="9" fill="#6c7a8a">total</text>
+        </svg>`;
+    }
+
+    function buildLegend(segments, total) {
+        return segments.map(s => {
+            const pct = total > 0 ? Math.round(s.value / total * 100) : 0;
+            return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="width:12px;height:12px;border-radius:50%;background:${s.color};flex-shrink:0;display:inline-block;"></span>
+                <span style="font-size:13px;flex:1;">${escapeHtml(s.label)}</span>
+                <strong style="font-size:13px;">${s.value}</strong>
+                <span style="font-size:11px;color:#6c7a8a;">(${pct}%)</span>
+            </div>`;
+        }).join('');
+    }
+
+    function renderUserStatsModal(s) {
+        document.getElementById('userStatsModal')?.remove();
+
+        const COLORS = ['#2b7be4','#2ecc71','#f39c12','#e74c3c','#9b59b6','#1abc9c','#e67e22','#34495e'];
+
+        // Donut rôles
+        const roleSegs = Object.entries(s.par_role || {}).map(([k, v], i) => ({
+            value: v, color: COLORS[i % COLORS.length], label: k
+        }));
+
+        // Donut sexe
+        const sexeSegs = Object.entries(s.par_sexe || {}).map(([k, v], i) => ({
+            value: v, color: i === 0 ? '#2b7be4' : '#e74c3c', label: k || 'Non renseigné'
+        }));
+
+        // Donut cas social (top 6)
+        const socialEntries = Object.entries(s.par_cas_social || {}).slice(0, 6);
+        const socialSegs = socialEntries.map(([k, v], i) => ({
+            value: v, color: COLORS[i % COLORS.length], label: k
+        }));
+
+        const totalRole   = s.total_utilisateurs || 0;
+        const totalSexe   = Object.values(s.par_sexe || {}).reduce((a, b) => a + b, 0);
+        const totalSocial = socialEntries.reduce((a, [, v]) => a + v, 0);
+
+        const html = `
+        <div class="modal fade" id="userStatsModal" tabindex="-1">
+          <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content modal-custom">
+              <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="fas fa-chart-pie me-2"></i>Statistiques Utilisateurs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body" id="statsModalBody">
+
+                <!-- KPI cards -->
+                <div class="stats-grid mb-4">
+                  <div class="stat-card text-center">
+                    <div class="stat-icon mx-auto" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-users"></i></div>
+                    <div class="stat-number">${s.total_utilisateurs}</div>
+                    <div class="stat-label">Total utilisateurs</div>
+                  </div>
+                  <div class="stat-card text-center">
+                    <div class="stat-icon mx-auto" style="background:#e8f8f0;color:#2ecc71;"><i class="fas fa-user-injured"></i></div>
+                    <div class="stat-number">${s.total_patients}</div>
+                    <div class="stat-label">Patients</div>
+                  </div>
+                  <div class="stat-card text-center">
+                    <div class="stat-icon mx-auto" style="background:#fff3e0;color:#f39c12;"><i class="fas fa-user-md"></i></div>
+                    <div class="stat-number">${s.total_medecins}</div>
+                    <div class="stat-label">Médecins</div>
+                  </div>
+                  <div class="stat-card text-center">
+                    <div class="stat-icon mx-auto" style="background:#fee;color:#e74c3c;"><i class="fas fa-user-shield"></i></div>
+                    <div class="stat-number">${s.total_admins}</div>
+                    <div class="stat-label">Admins</div>
+                  </div>
+                </div>
+
+                <!-- Donuts row -->
+                <div class="row g-3 mb-3">
+
+                  <!-- Donut rôles -->
+                  <div class="col-md-4">
+                    <div class="data-card p-3 text-center h-100">
+                      <h6 class="mb-3"><i class="fas fa-users me-1"></i>Répartition par rôle</h6>
+                      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+                        ${buildDonutSVG(roleSegs, 130)}
+                      </div>
+                      <div style="text-align:left;">${buildLegend(roleSegs, totalRole)}</div>
+                    </div>
+                  </div>
+
+                  <!-- Donut sexe -->
+                  <div class="col-md-4">
+                    <div class="data-card p-3 text-center h-100">
+                      <h6 class="mb-3"><i class="fas fa-venus-mars me-1"></i>Répartition par sexe</h6>
+                      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+                        ${buildDonutSVG(sexeSegs, 130)}
+                      </div>
+                      <div style="text-align:left;">${buildLegend(sexeSegs, totalSexe)}</div>
+                    </div>
+                  </div>
+
+                  <!-- Donut cas social -->
+                  <div class="col-md-4">
+                    <div class="data-card p-3 text-center h-100">
+                      <h6 class="mb-3"><i class="fas fa-id-card me-1"></i>Cas social</h6>
+                      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+                        ${buildDonutSVG(socialSegs, 130)}
+                      </div>
+                      <div style="text-align:left;">${buildLegend(socialSegs, totalSocial)}</div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- Moyennes patients -->
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="data-card p-3">
+                      <h6><i class="fas fa-weight me-2"></i>Moyennes patients</h6>
+                      <div style="display:flex;gap:20px;margin-top:12px;">
+                        <div style="flex:1;text-align:center;">
+                          ${buildDonutSVG([
+                              {value: s.avg_poids_patients ? Math.round(s.avg_poids_patients) : 0, color:'#2b7be4', label:'Poids'},
+                              {value: s.avg_poids_patients ? Math.max(0, 150 - Math.round(s.avg_poids_patients)) : 150, color:'#f0f0f0', label:''}
+                          ], 100)}
+                          <div style="font-size:13px;margin-top:4px;"><strong>${s.avg_poids_patients ?? '—'} kg</strong><br><span style="color:#6c7a8a;font-size:11px;">Poids moyen</span></div>
+                        </div>
+                        <div style="flex:1;text-align:center;">
+                          ${buildDonutSVG([
+                              {value: s.avg_taille_patients ? Math.round(s.avg_taille_patients * 100) : 0, color:'#2ecc71', label:'Taille'},
+                              {value: s.avg_taille_patients ? Math.max(0, 220 - Math.round(s.avg_taille_patients * 100)) : 220, color:'#f0f0f0', label:''}
+                          ], 100)}
+                          <div style="font-size:13px;margin-top:4px;"><strong>${s.avg_taille_patients ?? '—'} m</strong><br><span style="color:#6c7a8a;font-size:11px;">Taille moyenne</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="data-card p-3">
+                      <h6><i class="fas fa-id-card me-2"></i>Détail cas social</h6>
+                      <div style="max-height:160px;overflow-y:auto;margin-top:8px;">
+                        ${Object.entries(s.par_cas_social || {}).map(([k, v]) =>
+                            `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">
+                              <span>${escapeHtml(k)}</span><strong>${v}</strong>
+                            </div>`
+                        ).join('') || '<p style="color:#aaa;font-size:13px;">Aucune donnée</p>'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <div class="modal-footer border-0">
+                <button class="btn-medical" onclick="exportStatsPDF()"><i class="fas fa-file-pdf me-1"></i>Exporter PDF</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        new bootstrap.Modal(document.getElementById('userStatsModal')).show();
+    }
+
+    function exportStatsPDF() {
+        const el = document.getElementById('statsModalBody');
+        if (!el) return;
+        if (typeof html2pdf === 'undefined') { showNotification('html2pdf non chargé', true); return; }
+        showNotification('Export PDF statistiques en cours…');
+        html2pdf().from(el).set({
+            filename: `stats-utilisateurs-${new Date().toISOString().slice(0,10)}.pdf`,
+            margin: [10, 8, 10, 8],
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).save();
+    }
+
+    // =========================================================
+    // EXPORT PDF — données filtrées + triées via API
+    // =========================================================
+    async function exportToPDF(elementId, filename) {
+        if (elementId === 'usersTable' || elementId === 'patientsTable') {
+            await exportUsersPDF(filename);
+            return;
+        }
         const element = document.getElementById(elementId);
-        if(element && typeof html2pdf !== 'undefined') {
-            html2pdf().from(element).set({ filename: filename }).save();
-            showNotification('Export PDF en cours...');
-        } else {
-            showNotification('Export PDF');
+        if (!element) { showNotification('Élément introuvable pour l\'export', true); return; }
+        if (typeof html2pdf === 'undefined') { showNotification('html2pdf non chargé', true); return; }
+        showNotification('Export PDF en cours…');
+        html2pdf().from(element).set({
+            filename: filename,
+            margin: [8, 6, 8, 6],
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        }).save();
+    }
+
+    async function exportUsersPDF(filename) {
+        if (typeof html2pdf === 'undefined') { showNotification('html2pdf non chargé', true); return; }
+        showNotification('Préparation de l\'export PDF…');
+        try {
+            const result = await apiRequest('export-pdf', 'POST', {
+                filters:    activeFilters,
+                sort_field: activeSortField,
+                sort_dir:   activeSortDir,
+            });
+
+            const filterDesc = Object.entries(activeFilters).length
+                ? 'Filtres : ' + Object.entries(activeFilters).map(([k, v]) => `${k}="${v}"`).join(', ')
+                : 'Aucun filtre actif';
+
+            const roleLabel = { patient: 'Patient', medecin: 'Médecin', admin: 'Admin' };
+            const rows = result.map((u, i) => {
+                const bg = i % 2 === 0 ? '#ffffff' : '#f7faff';
+                return `<tr style="background:${bg};">
+                  <td style="padding:5px 6px;">${escapeHtml(String(u.id_user))}</td>
+                  <td style="padding:5px 6px;font-weight:600;">${escapeHtml(u.nom)} ${escapeHtml(u.prenom)}</td>
+                  <td style="padding:5px 6px;">${escapeHtml(u.email)}</td>
+                  <td style="padding:5px 6px;">${escapeHtml(roleLabel[u.role] || u.role)}</td>
+                  <td style="padding:5px 6px;">${escapeHtml(u.sexe || '—')}</td>
+                  <td style="padding:5px 6px;text-align:center;">${u.age ?? '—'}</td>
+                  <td style="padding:5px 6px;text-align:center;">${u.poids ? u.poids + ' kg' : '—'}</td>
+                  <td style="padding:5px 6px;text-align:center;">${u.taille ? u.taille + ' m' : '—'}</td>
+                  <td style="padding:5px 6px;">${escapeHtml(u.cas_social || '—')}</td>
+                  <td style="padding:5px 6px;">${escapeHtml(u.specialite || '—')}</td>
+                </tr>`;
+            }).join('');
+
+            const pdfContent = `
+                <div style="font-family:Arial,Helvetica,sans-serif;padding:12px;color:#2c3e50;">
+                  <div style="display:flex;align-items:center;margin-bottom:10px;border-bottom:3px solid #2b7be4;padding-bottom:8px;">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#2b7be4,#2ecc71);border-radius:10px;margin-right:12px;"></div>
+                    <div>
+                      <div style="font-size:16px;font-weight:800;color:#2b7be4;">GlobalHealth Connect</div>
+                      <div style="font-size:10px;color:#6c7a8a;">Liste des utilisateurs — Backoffice Médical</div>
+                    </div>
+                    <div style="margin-left:auto;text-align:right;font-size:10px;color:#6c7a8a;">
+                      Généré le ${new Date().toLocaleString('fr-FR')}<br>
+                      ${filterDesc}<br>
+                      Tri : <strong>${activeSortField}</strong> ${activeSortDir} &nbsp;|&nbsp; <strong>${result.length}</strong> résultat(s)
+                    </div>
+                  </div>
+                  <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+                    <thead>
+                      <tr style="background:#2b7be4;color:white;">
+                        <th style="padding:6px 6px;text-align:left;">ID</th>
+                        <th style="padding:6px 6px;text-align:left;">Nom Prénom</th>
+                        <th style="padding:6px 6px;text-align:left;">Email</th>
+                        <th style="padding:6px 6px;text-align:left;">Rôle</th>
+                        <th style="padding:6px 6px;text-align:left;">Sexe</th>
+                        <th style="padding:6px 6px;text-align:center;">Âge</th>
+                        <th style="padding:6px 6px;text-align:center;">Poids</th>
+                        <th style="padding:6px 6px;text-align:center;">Taille</th>
+                        <th style="padding:6px 6px;text-align:left;">Cas social</th>
+                        <th style="padding:6px 6px;text-align:left;">Spécialité</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows || '<tr><td colspan="10" style="text-align:center;padding:20px;color:#aaa;">Aucun résultat</td></tr>'}</tbody>
+                  </table>
+                  <div style="margin-top:10px;font-size:9px;color:#aaa;text-align:right;">
+                    GlobalHealth Connect — Document confidentiel
+                  </div>
+                </div>`;
+
+            // Conteneur hors-écran pour éviter tout flash visuel
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:297mm;background:#fff;';
+            wrapper.innerHTML = pdfContent;
+            document.body.appendChild(wrapper);
+
+            await html2pdf().from(wrapper).set({
+                filename: filename || `utilisateurs-${new Date().toISOString().slice(0,10)}.pdf`,
+                margin: [8, 6, 8, 6],
+                html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 1122 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            }).save();
+
+            document.body.removeChild(wrapper);
+            showNotification(`✅ PDF généré — ${result.length} utilisateur(s)`);
+        } catch (err) {
+            showNotification(`Erreur export PDF: ${err.message}`, true);
         }
     }
     
@@ -794,83 +1119,259 @@ $usersApiBase = gh_users_api_base();
     
     // ==================== UTILISATEURS ====================
     function renderUsers() {
-        const doctors = usersData.filter(u => u.role === 'medecin');
+        const doctors  = usersData.filter(u => u.role === 'medecin');
         const patients = usersData.filter(u => u.role === 'patient');
-        
-        if(usersData.length === 0) {
+
+        if (usersData.length === 0) {
             return `<div class="data-card"><div class="empty-state"><i class="fas fa-users"></i><p>Aucun utilisateur</p><button class="btn btn-medical" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter un utilisateur</button></div></div>`;
         }
-        
+
         return `
             <div class="stats-grid">
                 <div class="stat-card"><div class="stat-number">${usersData.length}</div><div class="stat-label">Total utilisateurs</div></div>
                 <div class="stat-card"><div class="stat-number">${doctors.length}</div><div class="stat-label">Médecins</div></div>
                 <div class="stat-card"><div class="stat-number">${patients.length}</div><div class="stat-label">Patients</div></div>
             </div>
+
+            <!-- ===== BARRE RECHERCHE AVANCÉE ===== -->
+            <div class="data-card mb-3">
+                <h6 class="mb-3"><i class="fas fa-search me-2"></i>Recherche avancée &amp; Tri dynamique</h6>
+                <form id="searchUsersForm" onsubmit="return false;">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-2">
+                            <input type="text" class="form-control form-control-custom" id="filterNom"
+                                   placeholder="Nom" value="${escapeHtml(activeFilters.nom || '')}">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control form-control-custom" id="filterPrenom"
+                                   placeholder="Prénom" value="${escapeHtml(activeFilters.prenom || '')}">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="email" class="form-control form-control-custom" id="filterEmail"
+                                   placeholder="Email" value="${escapeHtml(activeFilters.email || '')}">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-control-custom" id="filterSexe">
+                                <option value="">Sexe (tous)</option>
+                                <option value="Homme" ${activeFilters.sexe === 'Homme' ? 'selected' : ''}>Homme</option>
+                                <option value="Femme" ${activeFilters.sexe === 'Femme' ? 'selected' : ''}>Femme</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <select class="form-select form-control-custom" id="filterRole">
+                                <option value="">Rôle (tous)</option>
+                                <option value="patient"  ${activeFilters.role === 'patient'  ? 'selected' : ''}>Patient</option>
+                                <option value="medecin"  ${activeFilters.role === 'medecin'  ? 'selected' : ''}>Médecin</option>
+                                <option value="admin"    ${activeFilters.role === 'admin'    ? 'selected' : ''}>Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control form-control-custom" id="filterCasSocial"
+                                   placeholder="Cas social" value="${escapeHtml(activeFilters.cas_social || '')}">
+                        </div>
+                    </div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-2">
+                            <select class="form-select form-control-custom" id="sortField">
+                                <option value="id_user"        ${activeSortField === 'id_user'        ? 'selected' : ''}>Tri : ID</option>
+                                <option value="nom"            ${activeSortField === 'nom'            ? 'selected' : ''}>Tri : Nom</option>
+                                <option value="prenom"         ${activeSortField === 'prenom'         ? 'selected' : ''}>Tri : Prénom</option>
+                                <option value="age"            ${activeSortField === 'age'            ? 'selected' : ''}>Tri : Âge</option>
+                                <option value="poids"          ${activeSortField === 'poids'          ? 'selected' : ''}>Tri : Poids</option>
+                                <option value="taille"         ${activeSortField === 'taille'         ? 'selected' : ''}>Tri : Taille</option>
+                                <option value="date_naissance" ${activeSortField === 'date_naissance' ? 'selected' : ''}>Tri : Date naissance</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <select class="form-select form-control-custom" id="sortDir">
+                                <option value="ASC"  ${activeSortDir === 'ASC'  ? 'selected' : ''}>↑ ASC</option>
+                                <option value="DESC" ${activeSortDir === 'DESC' ? 'selected' : ''}>↓ DESC</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-medical" onclick="applySearchAndSort()">
+                                <i class="fas fa-search me-1"></i>Rechercher
+                            </button>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-outline-medical" onclick="resetSearchAndSort()">
+                                <i class="fas fa-times me-1"></i>Réinitialiser
+                            </button>
+                        </div>
+                        <div class="col-auto ms-auto">
+                            <span id="searchResultCount" class="text-muted small"></span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ===== TABLEAU RÉSULTATS ===== -->
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Médecins (${doctors.length})</h5>
+                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>Résultats</h5>
                     <div class="btn-group-actions">
                         <button class="btn-medical btn-sm" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter</button>
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')"><i class="fas fa-chart-line"></i> Statistiques</button>
-                        <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('usersTable', 'medecins-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
+                        <button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')"><i class="fas fa-chart-pie me-1"></i>Statistiques</button>
+                        <button class="btn-outline-medical btn-sm" onclick="exportToPDF('usersTable', 'utilisateurs.pdf')"><i class="fas fa-file-pdf me-1"></i>Exporter PDF</button>
                     </div>
                 </div>
-                <div id="usersTable">
-                <table class="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Spécialité</th><th>Actions</th></tr></thead>
-                <tbody>${doctors.map(d => {
-                    const uid = userId(d);
-                    const spec = (d.specialite && String(d.specialite).trim()) ? String(d.specialite).trim() : 'Généraliste';
-                    return `<tr>
-                    <td><strong>${escapeHtml(userFullName(d))}</strong></td>
-                    <td><a href="mailto:${escapeHtml(d.email)}">${escapeHtml(d.email)}</a></td>
-                    <td><span class="status-badge status-approved">${escapeHtml(spec)}</span></td>
-                    <td>
-                        <button type="button" class="icon-btn edit" onclick="editUser(${uid})" title="Modifier"><i class="fas fa-edit"></i></button>
-                        <button type="button" class="icon-btn delete" onclick="deleteUser(${uid})" title="Supprimer"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
-                }).join('')}</tbody>
-                </table>
-                </div>
-            </div>
-            <div class="data-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>Patients (${patients.length})</h5>
-                    <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('patientsTable', 'patients-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
-                </div>
-                <div id="patientsTable" class="table-scroll">
-                <table class="data-table"><thead><tr>
-                    <th>Nom</th>
-                    <th>Email</th>
-                    <th>Âge</th>
-                    <th>Date naissance</th>
-                    <th>Poids</th>
-                    <th>Taille</th>
-                    <th>Cas social</th>
-                    <th>Actions</th>
-                </tr></thead>
-                <tbody>${patients.map(p => {
-                    const pid = userId(p);
-                    const age = (p.age !== null && p.age !== undefined && p.age !== '') ? String(p.age) : '—';
-                    return `<tr>
-                    <td><strong>${escapeHtml(userFullName(p))}</strong></td>
-                    <td><a href="mailto:${escapeHtml(p.email)}">${escapeHtml(p.email)}</a></td>
-                    <td>${escapeHtml(age)}</td>
-                    <td>${escapeHtml(formatDateNaissance(p.date_naissance))}</td>
-                    <td>${escapeHtml(displayMetric(p.poids, 'kg'))}</td>
-                    <td>${escapeHtml(displayMetric(p.taille, 'm'))}</td>
-                    <td>${escapeHtml(p.cas_social && String(p.cas_social).trim() ? p.cas_social : '—')}</td>
-                    <td>
-                        <button type="button" class="icon-btn edit" onclick="editUser(${pid})" title="Modifier"><i class="fas fa-edit"></i></button>
-                        <button type="button" class="icon-btn delete" onclick="deleteUser(${pid})" title="Supprimer"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
-                }).join('')}</tbody>
-                </table>
+                <div id="usersTableWrapper" class="table-scroll">
+                    <div id="usersTable">
+                        ${buildUsersTableHTML(usersData)}
+                    </div>
                 </div>
             </div>
         `;
+    }
+
+    function buildUsersTableHTML(data) {
+        if (!data || data.length === 0) {
+            return `<div class="empty-state"><i class="fas fa-search"></i><p>Aucun résultat</p></div>`;
+        }
+
+        // Colonnes triables : [label, champ_api]
+        const cols = [
+            { label: 'Nom Prénom',      field: 'nom'            },
+            { label: 'Email',           field: null             },
+            { label: 'Rôle',            field: null             },
+            { label: 'Sexe',            field: null             },
+            { label: 'Âge',             field: 'age'            },
+            { label: 'Poids',           field: 'poids'          },
+            { label: 'Taille',          field: 'taille'         },
+            { label: 'Date naissance',  field: 'date_naissance' },
+            { label: 'Cas social',      field: null             },
+            { label: 'Spécialité',      field: null             },
+            { label: 'Actions',         field: null             },
+        ];
+
+        const thCells = cols.map(c => {
+            if (!c.field) return `<th>${c.label}</th>`;
+            const isActive = activeSortField === c.field;
+            const nextDir  = (isActive && activeSortDir === 'ASC') ? 'DESC' : 'ASC';
+            const icon     = isActive
+                ? (activeSortDir === 'ASC' ? '▲' : '▼')
+                : '<span style="opacity:.35;">⇅</span>';
+            return `<th style="cursor:pointer;white-space:nowrap;user-select:none;"
+                        onclick="quickSort('${c.field}','${nextDir}')"
+                        title="Trier par ${c.label}">
+                      ${c.label} ${icon}
+                    </th>`;
+        }).join('');
+
+        const rows = data.map(u => {
+            const uid  = userId(u);
+            const role = u.role || 'patient';
+            const age  = (u.age !== null && u.age !== undefined && u.age !== '') ? String(u.age) : '—';
+            const spec = (u.specialite && String(u.specialite).trim()) ? String(u.specialite).trim() : '—';
+            const roleBadge = role === 'medecin'
+                ? `<span class="status-badge status-approved">Médecin</span>`
+                : role === 'admin'
+                    ? `<span class="status-badge status-reported">Admin</span>`
+                    : `<span class="status-badge status-pending">Patient</span>`;
+            return `<tr>
+                <td><strong>${escapeHtml(userFullName(u))}</strong></td>
+                <td><a href="mailto:${escapeHtml(u.email)}">${escapeHtml(u.email)}</a></td>
+                <td>${roleBadge}</td>
+                <td>${escapeHtml(u.sexe || '—')}</td>
+                <td>${escapeHtml(age)}</td>
+                <td>${escapeHtml(displayMetric(u.poids, 'kg'))}</td>
+                <td>${escapeHtml(displayMetric(u.taille, 'm'))}</td>
+                <td>${escapeHtml(formatDateNaissance(u.date_naissance))}</td>
+                <td>${escapeHtml(u.cas_social && String(u.cas_social).trim() ? u.cas_social : '—')}</td>
+                <td>${escapeHtml(spec)}</td>
+                <td>
+                    <button type="button" class="icon-btn edit"   onclick="editUser(${uid})"   title="Modifier"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="icon-btn delete" onclick="deleteUser(${uid})" title="Supprimer"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `<table class="data-table">
+            <thead><tr>${thCells}</tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // Tri rapide depuis clic sur en-tête de colonne
+    async function quickSort(field, dir) {
+        activeSortField = field;
+        activeSortDir   = dir;
+        // Synchronise les selects si la barre de recherche est visible
+        const sf = document.getElementById('sortField');
+        const sd = document.getElementById('sortDir');
+        if (sf) sf.value = field;
+        if (sd) sd.value = dir;
+        try {
+            const results = await apiRequest('search', 'POST', {
+                filters:    activeFilters,
+                sort_field: field,
+                sort_dir:   dir,
+            });
+            const wrapper = document.getElementById('usersTable');
+            if (wrapper) wrapper.innerHTML = buildUsersTableHTML(results);
+            const countEl = document.getElementById('searchResultCount');
+            if (countEl) countEl.textContent = `${results.length} résultat(s)`;
+        } catch (err) {
+            showNotification(`Erreur tri: ${err.message}`, true);
+        }
+    }
+
+    async function applySearchAndSort() {
+        const filters = {};
+        const nom       = document.getElementById('filterNom')?.value.trim();
+        const prenom    = document.getElementById('filterPrenom')?.value.trim();
+        const email     = document.getElementById('filterEmail')?.value.trim();
+        const sexe      = document.getElementById('filterSexe')?.value;
+        const role      = document.getElementById('filterRole')?.value;
+        const casSocial = document.getElementById('filterCasSocial')?.value.trim();
+
+        if (nom)       filters.nom        = nom;
+        if (prenom)    filters.prenom     = prenom;
+        if (email)     filters.email      = email;
+        if (sexe)      filters.sexe       = sexe;
+        if (role)      filters.role       = role;
+        if (casSocial) filters.cas_social = casSocial;
+
+        const sortField = document.getElementById('sortField')?.value || 'id_user';
+        const sortDir   = document.getElementById('sortDir')?.value   || 'DESC';
+
+        // Mémoriser l'état actif pour l'export PDF
+        activeFilters   = filters;
+        activeSortField = sortField;
+        activeSortDir   = sortDir;
+
+        try {
+            const results = await apiRequest('search', 'POST', {
+                filters,
+                sort_field: sortField,
+                sort_dir:   sortDir,
+            });
+
+            const wrapper = document.getElementById('usersTable');
+            if (wrapper) wrapper.innerHTML = buildUsersTableHTML(results);
+
+            const countEl = document.getElementById('searchResultCount');
+            if (countEl) countEl.textContent = `${results.length} résultat(s)`;
+
+            showNotification(`${results.length} utilisateur(s) trouvé(s)`);
+        } catch (err) {
+            showNotification(`Erreur recherche: ${err.message}`, true);
+        }
+    }
+
+    async function resetSearchAndSort() {
+        activeFilters   = {};
+        activeSortField = 'id_user';
+        activeSortDir   = 'DESC';
+
+        // Recharge la liste complète depuis l'API
+        try {
+            await loadUsersFromApi();
+        } catch (e) { /* silencieux */ }
+
+        // Re-render le module pour réinitialiser les champs du formulaire
+        loadModuleContent('users');
+        showNotification('Filtres réinitialisés');
     }
     
     function toggleSpecialtyField() {

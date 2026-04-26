@@ -411,4 +411,97 @@ class UserController
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    // =========================================================
+    // RECHERCHE AVANCÉE MULTI-CRITÈRES + TRI
+    // =========================================================
+
+    /**
+     * POST /api/users/search
+     * Body JSON : { filters: {nom, prenom, email, sexe, role, cas_social},
+     *               sort_field: string, sort_dir: 'ASC'|'DESC' }
+     */
+    public function search(): void
+    {
+        $input = $this->getJsonInput();
+
+        $filters   = is_array($input['filters'] ?? null) ? $input['filters'] : [];
+        $sortField = trim((string) ($input['sort_field'] ?? 'id_user'));
+        $sortDir   = trim((string) ($input['sort_dir']   ?? 'DESC'));
+
+        // Nettoyage des filtres (on n'accepte que les clés connues)
+        $allowedFilters = ['nom', 'prenom', 'email', 'sexe', 'role', 'cas_social'];
+        $cleanFilters   = array_filter(
+            array_intersect_key($filters, array_flip($allowedFilters)),
+            static fn ($v) => is_string($v) && trim($v) !== ''
+        );
+
+        try {
+            $rows  = $this->userModel->search($cleanFilters, $sortField, $sortDir);
+            $users = array_map(fn ($u) => $this->normalizeUser($u), $rows);
+            $this->jsonResponse([
+                'success' => true,
+                'data'    => $users,
+                'count'   => count($users),
+            ]);
+        } catch (Throwable $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // =========================================================
+    // STATISTIQUES
+    // =========================================================
+
+    /**
+     * GET /api/users/stats
+     */
+    public function stats(): void
+    {
+        try {
+            $stats = $this->userModel->getStats();
+            $this->jsonResponse(['success' => true, 'data' => $stats]);
+        } catch (Throwable $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // =========================================================
+    // EXPORT PDF — données filtrées + triées
+    // =========================================================
+
+    /**
+     * POST /api/users/export-pdf
+     * Body JSON : { filters: {...}, sort_field: string, sort_dir: string }
+     * Retourne les lignes prêtes à être transmises au module html2pdf côté client.
+     */
+    public function exportPdf(): void
+    {
+        $input = $this->getJsonInput();
+
+        $filters   = is_array($input['filters'] ?? null) ? $input['filters'] : [];
+        $sortField = trim((string) ($input['sort_field'] ?? 'id_user'));
+        $sortDir   = trim((string) ($input['sort_dir']   ?? 'DESC'));
+
+        $allowedFilters = ['nom', 'prenom', 'email', 'sexe', 'role', 'cas_social'];
+        $cleanFilters   = array_filter(
+            array_intersect_key($filters, array_flip($allowedFilters)),
+            static fn ($v) => is_string($v) && trim($v) !== ''
+        );
+
+        try {
+            $rows = $this->userModel->getForPdfExport($cleanFilters, $sortField, $sortDir);
+            $this->jsonResponse([
+                'success'    => true,
+                'data'       => $rows,
+                'count'      => count($rows),
+                'filters'    => $cleanFilters,
+                'sort_field' => $sortField,
+                'sort_dir'   => $sortDir,
+                'generated_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (Throwable $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }
