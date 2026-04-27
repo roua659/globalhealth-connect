@@ -37,7 +37,6 @@ class UserController
             'nom' => $user['nom'] ?? '',
             'prenom' => $user['prenom'] ?? '',
             'name' => $fullName,
-            'age' => isset($user['age']) ? (int) $user['age'] : null,
             'sexe' => $user['sexe'] ?? null,
             'poids' => isset($user['poids']) ? (float) $user['poids'] : null,
             'taille' => isset($user['taille']) ? (float) $user['taille'] : null,
@@ -73,7 +72,7 @@ class UserController
     public function create(): void
     {
         $input = $this->getJsonInput();
-        $required = ['nom', 'prenom', 'age', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
+        $required = ['nom', 'prenom', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
         foreach ($required as $field) {
             if (!array_key_exists($field, $input) || $input[$field] === '') {
                 $this->jsonResponse(['success' => false, 'message' => "Champ obligatoire: {$field}"], 422);
@@ -140,13 +139,8 @@ class UserController
                     return;
                 }
 
-                $age = (int) ($input['age'] ?? 0);
                 $poids = (float) ($input['poids'] ?? 0);
                 $taille = (float) ($input['taille'] ?? 0);
-                if ($age < 0 || $age > 130) {
-                    $this->jsonResponse(['success' => false, 'message' => 'Âge invalide'], 422);
-                    return;
-                }
                 if ($poids <= 0 || $taille <= 0) {
                     $this->jsonResponse(['success' => false, 'message' => 'Poids ou taille invalides'], 422);
                     return;
@@ -168,7 +162,6 @@ class UserController
                     'nom' => $nom,
                     'prenom' => $prenom,
                     'email' => $email,
-                    'age' => $age,
                     'sexe' => $sexe,
                     'poids' => $poids,
                     'taille' => $taille,
@@ -280,7 +273,6 @@ class UserController
             $id = $this->userModel->create([
                 'nom' => $input['nom'],
                 'prenom' => $input['prenom'],
-                'age' => (int) ($input['age'] ?? 0),
                 'sexe' => $input['sexe'] ?? '',
                 'poids' => (float) ($input['poids'] ?? 0),
                 'taille' => (float) ($input['taille'] ?? 0),

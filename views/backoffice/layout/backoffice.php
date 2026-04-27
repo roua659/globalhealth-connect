@@ -21,240 +21,354 @@ $usersApiBase = gh_users_api_base();
             --medical-green: #2ecc71;
             --medical-gray: #f5f7fa;
             --medical-text: #2c3e50;
-            --sidebar-width: 280px;
+            --sidebar-width: 240px;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        html, body {
             font-family: 'Inter', sans-serif;
             background: var(--medical-gray);
             color: var(--medical-text);
+            overflow-x: hidden;
         }
         
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(30px); }
+            from { opacity: 0; transform: translateX(20px); }
             to { opacity: 1; transform: translateX(0); }
         }
         
         .dashboard-container { display: flex; min-height: 100vh; }
+
+        /* ── Sidebar ── */
         .sidebar {
             width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
             background: white;
             box-shadow: 2px 0 20px rgba(0,0,0,0.05);
-            padding: 30px 20px;
+            padding: 24px 16px;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            z-index: 100;
         }
         .sidebar-logo {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 30px;
+            padding-bottom: 18px;
             border-bottom: 1px solid #eee;
         }
         .logo-icon {
-            width: 45px;
-            height: 45px;
+            width: 40px;
+            height: 40px;
             background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
-            border-radius: 14px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 1.4rem;
+            font-size: 1.2rem;
+            flex-shrink: 0;
         }
-        .sidebar-menu {
-            list-style: none;
-            padding: 0;
-        }
-        .sidebar-menu li { margin-bottom: 8px; }
+        .sidebar-menu { list-style: none; padding: 0; }
+        .sidebar-menu li { margin-bottom: 4px; }
         .sidebar-menu a {
             display: flex;
             align-items: center;
-            gap: 15px;
-            padding: 14px 18px;
-            border-radius: 16px;
+            gap: 12px;
+            padding: 11px 14px;
+            border-radius: 14px;
             color: var(--medical-text);
             text-decoration: none;
-            transition: all 0.3s;
+            transition: all 0.25s;
             font-weight: 500;
+            font-size: 0.88rem;
             cursor: pointer;
         }
         .sidebar-menu a:hover { background: var(--medical-light-blue); color: var(--medical-blue); }
         .sidebar-menu a.active {
             background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
             color: white;
-            box-shadow: 0 5px 15px rgba(43,123,228,0.3);
+            box-shadow: 0 4px 12px rgba(43,123,228,0.3);
         }
         .sidebar-footer {
             position: absolute;
-            bottom: 30px;
-            left: 20px;
-            right: 20px;
-            padding-top: 20px;
+            bottom: 24px;
+            left: 16px;
+            right: 16px;
+            padding-top: 16px;
             border-top: 1px solid #eee;
         }
-        
+
+        /* ── Main content ── */
         .main-content {
             flex: 1;
             margin-left: var(--sidebar-width);
-            padding: 25px 35px;
+            padding: 20px 24px;
+            min-width: 0;
+            overflow-x: hidden;
         }
         .top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
             background: white;
-            padding: 15px 25px;
-            border-radius: 20px;
+            padding: 14px 22px;
+            border-radius: 18px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
         }
         .page-title {
-            font-size: 1.6rem;
+            font-size: 1.4rem;
             font-weight: 700;
             background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        
+
+        /* ── Stats grid ── */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 25px;
-            margin-bottom: 35px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
         }
         .stat-card {
             background: white;
-            border-radius: 24px;
-            padding: 25px;
+            border-radius: 20px;
+            padding: 20px;
             transition: all 0.3s;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
         }
-        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.08); }
+        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(0,0,0,0.08); }
         .stat-icon {
-            width: 55px;
-            height: 55px;
-            border-radius: 18px;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.6rem;
-            margin-bottom: 18px;
+            font-size: 1.4rem;
+            margin-bottom: 14px;
         }
-        .stat-number { font-size: 2.2rem; font-weight: 800; margin: 10px 0 5px; }
-        .stat-label { color: #6c7a8a; font-size: 0.9rem; }
-        
+        .stat-number { font-size: 2rem; font-weight: 800; margin: 8px 0 4px; }
+        .stat-label { color: #6c7a8a; font-size: 0.85rem; }
+
+        /* ── Data card ── */
         .data-card {
             background: white;
-            border-radius: 24px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
-            animation: slideIn 0.4s ease-out;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            animation: slideIn 0.35s ease-out;
+            overflow: hidden;
         }
+
+        /* ── Table ── */
+        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
         .data-table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.85rem;
         }
         .data-table th, .data-table td {
-            padding: 14px 12px;
+            padding: 11px 10px;
             text-align: left;
             border-bottom: 1px solid #f0f0f0;
+            white-space: nowrap;
         }
+        .data-table td { white-space: normal; word-break: break-word; max-width: 180px; }
         .data-table td a[href^="mailto:"] {
             color: var(--medical-blue);
             text-decoration: none;
             font-weight: 500;
         }
         .data-table td a[href^="mailto:"]:hover { text-decoration: underline; }
-        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .table-scroll .data-table { min-width: 920px; }
         .data-table th {
             font-weight: 600;
+            font-size: 0.82rem;
             color: var(--medical-blue);
             background: var(--medical-light-blue);
         }
+
+        /* ── Colonnes triables ── */
+        .data-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background .15s;
+        }
+        .data-table th.sortable:hover { background: #d0e8ff; }
+        .data-table th.sortable.sort-active { background: #c2dfff; }
+        .sort-icon { font-size: 0.7rem; margin-left: 4px; opacity: 0.5; }
+        .sort-icon.active { opacity: 1; color: #1a5fc8; }
+
+        /* ── Badges ── */
         .status-badge {
-            padding: 5px 14px;
-            border-radius: 30px;
-            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
             font-weight: 600;
             display: inline-block;
+            white-space: nowrap;
         }
-        .status-approved { background: #e8f8f0; color: #2ecc71; }
-        .status-pending { background: #fff3e0; color: #f39c12; }
-        .status-reported { background: #fee; color: #e74c3c; }
-        
+        .status-approved { background: #e8f8f0; color: #27ae60; }
+        .status-pending  { background: #fff3e0; color: #e67e22; }
+        .status-reported { background: #fde8e8; color: #e74c3c; }
+
+        /* ── Buttons ── */
         .icon-btn {
             background: none;
             border: none;
             cursor: pointer;
-            padding: 8px 12px;
-            margin: 0 3px;
-            border-radius: 12px;
+            padding: 6px 9px;
+            margin: 0 2px;
+            border-radius: 10px;
             transition: all 0.2s;
+            font-size: 0.85rem;
         }
-        .icon-btn:hover { background: var(--medical-gray); transform: scale(1.05); }
-        .icon-btn.approve { color: #2ecc71; }
-        .icon-btn.delete { color: #e74c3c; }
-        .icon-btn.edit { color: var(--medical-blue); }
-        .icon-btn.flag { color: #f39c12; }
-        
+        .icon-btn:hover { background: var(--medical-gray); transform: scale(1.08); }
+        .icon-btn.approve { color: #27ae60; }
+        .icon-btn.delete  { color: #e74c3c; }
+        .icon-btn.edit    { color: var(--medical-blue); }
+        .icon-btn.flag    { color: #f39c12; }
+
         .btn-medical {
             background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
             border: none;
-            padding: 10px 24px;
-            border-radius: 40px;
+            padding: 9px 20px;
+            border-radius: 30px;
             color: white;
             font-weight: 600;
+            font-size: 0.85rem;
             transition: all 0.3s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
-        .btn-medical:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(43,123,228,0.3); }
+        .btn-medical:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(43,123,228,0.35); }
+        .btn-medical.btn-sm { padding: 7px 16px; font-size: 0.8rem; }
+
         .btn-outline-medical {
             background: transparent;
             border: 2px solid var(--medical-blue);
             color: var(--medical-blue);
-            padding: 8px 22px;
-            border-radius: 40px;
+            padding: 7px 18px;
+            border-radius: 30px;
             font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s;
         }
-        
+        .btn-outline-medical:hover { background: var(--medical-light-blue); }
+        .btn-outline-medical.btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+        .btn-group-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        /* ── Search bar ── */
+        .search-bar-card { padding: 18px 20px; }
+        .search-bar-card .section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--medical-text);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .search-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .search-field {
+            flex: 1;
+            min-width: 130px;
+        }
+        .search-field label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6c7a8a;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .search-field input,
+        .search-field select {
+            width: 100%;
+            border: 1.5px solid #e0e6ef;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-family: 'Inter', sans-serif;
+            color: var(--medical-text);
+            background: #fafbfc;
+            transition: border-color .2s, box-shadow .2s;
+            outline: none;
+        }
+        .search-field input:focus,
+        .search-field select:focus {
+            border-color: var(--medical-blue);
+            box-shadow: 0 0 0 3px rgba(43,123,228,0.1);
+            background: #fff;
+        }
+        .search-actions { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+        .search-result-count {
+            font-size: 0.8rem;
+            color: #6c7a8a;
+            padding: 4px 10px;
+            background: var(--medical-gray);
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        /* ── Modal ── */
         .modal-custom .modal-content {
-            border-radius: 28px;
+            border-radius: 24px;
             border: none;
-            padding: 10px;
+            padding: 8px;
         }
         .form-control-custom {
-            border: 1px solid #e0e0e0;
-            border-radius: 16px;
-            padding: 12px 16px;
+            border: 1.5px solid #e0e6ef;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.88rem;
         }
         .form-control-custom:focus {
             border-color: var(--medical-blue);
             box-shadow: 0 0 0 3px rgba(43,123,228,0.1);
         }
-        
+
+        /* ── Toast ── */
         .notification-toast {
             position: fixed;
-            bottom: 25px;
-            right: 25px;
+            bottom: 22px;
+            right: 22px;
             background: white;
-            padding: 14px 24px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            transform: translateX(450px);
+            padding: 12px 22px;
+            border-radius: 14px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+            transform: translateX(420px);
             transition: transform 0.3s;
-            z-index: 1001;
+            z-index: 2000;
             border-left: 4px solid #2ecc71;
+            font-size: 0.88rem;
+            max-width: 340px;
         }
         .notification-toast.show { transform: translateX(0); }
-        
+
+        /* ── Chart bars ── */
         .chart-bar {
             background: var(--medical-gray);
-            border-radius: 12px;
-            height: 40px;
-            margin-bottom: 12px;
+            border-radius: 10px;
+            height: 36px;
+            margin-bottom: 10px;
             overflow: hidden;
         }
         .chart-bar-fill {
@@ -263,45 +377,33 @@ $usersApiBase = gh_users_api_base();
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            padding-right: 15px;
+            padding-right: 12px;
             color: white;
             font-weight: 500;
+            font-size: 0.82rem;
         }
-        
+
+        /* ── Empty state ── */
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 50px 20px;
             color: #6c7a8a;
         }
-        .empty-state i { font-size: 4rem; margin-bottom: 20px; opacity: 0.3; }
-        
-        .btn-group-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+        .empty-state i { font-size: 3.5rem; margin-bottom: 16px; opacity: 0.25; display: block; }
 
-        /* Style pour le suivi */
+        /* ── Followup ── */
         .followup-card {
             background: var(--medical-gray);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 14px;
             border-left: 4px solid var(--medical-blue);
         }
-        .followup-card h6 {
-            margin-bottom: 10px;
-            color: var(--medical-blue);
-        }
-
-        /* ── Colonnes triables ── */
-        .data-table th[onclick] { transition: background .15s; }
-        .data-table th[onclick]:hover { background: #d0e8ff; color: var(--medical-blue); }
-        .data-table th[onclick]:active { background: #b8d8ff; }
+        .followup-card h6 { margin-bottom: 8px; color: var(--medical-blue); font-size: 0.88rem; }
 
         /* ── Donut stats ── */
-        .stat-donut-wrap { display:flex; justify-content:center; margin-bottom:10px; }
-        .stat-donut-wrap svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.08)); }
+        .stat-donut-wrap { display: flex; justify-content: center; margin-bottom: 10px; }
+        .stat-donut-wrap svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.07)); }
     </style>
 </head>
 <body>
@@ -352,9 +454,8 @@ $usersApiBase = gh_users_api_base();
 <div class="modal-body"><form id="addUserForm" novalidate><div class="row g-3">
 <div class="col-md-6"><label>Nom</label><input type="text" class="form-control form-control-custom" id="newUserNom" autocomplete="family-name" inputmode="text" pattern="^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$" title="Lettres seulement" oninput="this.value = this.value.replace(/[0-9]/g, '')"></div>
 <div class="col-md-6"><label>Prénom</label><input type="text" class="form-control form-control-custom" id="newUserPrenom" autocomplete="given-name" inputmode="text" pattern="^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$" title="Lettres seulement" oninput="this.value = this.value.replace(/[0-9]/g, '')"></div>
-<div class="col-md-4"><label>Age</label><input type="number" class="form-control form-control-custom" id="newUserAge" min="0" max="130"></div>
-<div class="col-md-4"><label>Sexe</label><select class="form-select form-control-custom" id="newUserSexe"><option value="">Sélectionner</option><option value="Homme">Homme</option><option value="Femme">Femme</option></select></div>
-<div class="col-md-4"><label>Date naissance</label><input type="date" class="form-control form-control-custom" id="newUserDateNaissance"></div>
+<div class="col-md-6"><label>Sexe</label><select class="form-select form-control-custom" id="newUserSexe"><option value="">Sélectionner</option><option value="Homme">Homme</option><option value="Femme">Femme</option></select></div>
+<div class="col-md-6"><label>Date naissance</label><input type="date" class="form-control form-control-custom" id="newUserDateNaissance"></div>
 <div class="col-md-6"><label>Poids (kg)</label><input type="number" class="form-control form-control-custom" id="newUserPoids" min="0" step="0.1"></div>
 <div class="col-md-6"><label>Taille (m)</label><input type="number" class="form-control form-control-custom" id="newUserTaille" min="0" step="0.01"></div>
 <div class="col-md-6"><label>Email</label><input type="email" class="form-control form-control-custom" id="newUserEmail"></div>
@@ -375,9 +476,8 @@ $usersApiBase = gh_users_api_base();
     <div class="row g-3">
         <div class="col-md-6"><label>Nom</label><input type="text" class="form-control form-control-custom" id="editPatientNom" autocomplete="family-name" inputmode="text" pattern="^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$" title="Lettres seulement" oninput="this.value = this.value.replace(/[0-9]/g, '')"></div>
         <div class="col-md-6"><label>Prénom</label><input type="text" class="form-control form-control-custom" id="editPatientPrenom" autocomplete="given-name" inputmode="text" pattern="^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$" title="Lettres seulement" oninput="this.value = this.value.replace(/[0-9]/g, '')"></div>
-        <div class="col-md-4"><label>Âge</label><input type="number" class="form-control form-control-custom" id="editPatientAge" min="0" max="130"></div>
-        <div class="col-md-4"><label>Sexe</label><select class="form-select form-control-custom" id="editPatientSexe"><option value="">Sélectionner</option><option value="Homme">Homme</option><option value="Femme">Femme</option></select></div>
-        <div class="col-md-4"><label>Date de naissance</label><input type="date" class="form-control form-control-custom" id="editPatientDateNaissance"></div>
+        <div class="col-md-6"><label>Sexe</label><select class="form-select form-control-custom" id="editPatientSexe"><option value="">Sélectionner</option><option value="Homme">Homme</option><option value="Femme">Femme</option></select></div>
+        <div class="col-md-6"><label>Date de naissance</label><input type="date" class="form-control form-control-custom" id="editPatientDateNaissance"></div>
         <div class="col-md-6"><label>Poids (kg)</label><input type="number" class="form-control form-control-custom" id="editPatientPoids" min="0" step="0.1"></div>
         <div class="col-md-6"><label>Taille (m)</label><input type="number" class="form-control form-control-custom" id="editPatientTaille" min="0" step="0.01"></div>
         <div class="col-md-6"><label>Email</label><input type="email" class="form-control form-control-custom" id="editPatientEmail" autocomplete="email"></div>
@@ -865,7 +965,6 @@ $usersApiBase = gh_users_api_base();
                   <td style="padding:5px 6px;">${escapeHtml(u.email)}</td>
                   <td style="padding:5px 6px;">${escapeHtml(roleLabel[u.role] || u.role)}</td>
                   <td style="padding:5px 6px;">${escapeHtml(u.sexe || '—')}</td>
-                  <td style="padding:5px 6px;text-align:center;">${u.age ?? '—'}</td>
                   <td style="padding:5px 6px;text-align:center;">${u.poids ? u.poids + ' kg' : '—'}</td>
                   <td style="padding:5px 6px;text-align:center;">${u.taille ? u.taille + ' m' : '—'}</td>
                   <td style="padding:5px 6px;">${escapeHtml(u.cas_social || '—')}</td>
@@ -895,7 +994,6 @@ $usersApiBase = gh_users_api_base();
                         <th style="padding:6px 6px;text-align:left;">Email</th>
                         <th style="padding:6px 6px;text-align:left;">Rôle</th>
                         <th style="padding:6px 6px;text-align:left;">Sexe</th>
-                        <th style="padding:6px 6px;text-align:center;">Âge</th>
                         <th style="padding:6px 6px;text-align:center;">Poids</th>
                         <th style="padding:6px 6px;text-align:center;">Taille</th>
                         <th style="padding:6px 6px;text-align:left;">Cas social</th>
@@ -1123,99 +1221,130 @@ $usersApiBase = gh_users_api_base();
         const patients = usersData.filter(u => u.role === 'patient');
 
         if (usersData.length === 0) {
-            return `<div class="data-card"><div class="empty-state"><i class="fas fa-users"></i><p>Aucun utilisateur</p><button class="btn btn-medical" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter un utilisateur</button></div></div>`;
+            return `<div class="data-card"><div class="empty-state"><i class="fas fa-users"></i><p>Aucun utilisateur</p><button class="btn-medical" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter un utilisateur</button></div></div>`;
         }
 
         return `
+            <!-- KPI -->
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-number">${usersData.length}</div><div class="stat-label">Total utilisateurs</div></div>
-                <div class="stat-card"><div class="stat-number">${doctors.length}</div><div class="stat-label">Médecins</div></div>
-                <div class="stat-card"><div class="stat-number">${patients.length}</div><div class="stat-label">Patients</div></div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-users"></i></div>
+                    <div class="stat-number">${usersData.length}</div>
+                    <div class="stat-label">Total utilisateurs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#fff3e0;color:#f39c12;"><i class="fas fa-user-md"></i></div>
+                    <div class="stat-number">${doctors.length}</div>
+                    <div class="stat-label">Médecins</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#e8f8f0;color:#27ae60;"><i class="fas fa-user-injured"></i></div>
+                    <div class="stat-number">${patients.length}</div>
+                    <div class="stat-label">Patients</div>
+                </div>
             </div>
 
-            <!-- ===== BARRE RECHERCHE AVANCÉE ===== -->
-            <div class="data-card mb-3">
-                <h6 class="mb-3"><i class="fas fa-search me-2"></i>Recherche avancée &amp; Tri dynamique</h6>
+            <!-- BARRE RECHERCHE AVANCÉE -->
+            <div class="data-card search-bar-card">
+                <div class="section-title">
+                    <i class="fas fa-search" style="color:var(--medical-blue);"></i>
+                    Recherche avancée &amp; Tri dynamique
+                </div>
                 <form id="searchUsersForm" onsubmit="return false;">
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-2">
-                            <input type="text" class="form-control form-control-custom" id="filterNom"
-                                   placeholder="Nom" value="${escapeHtml(activeFilters.nom || '')}">
+                    <!-- Ligne 1 : filtres texte + sélecteurs -->
+                    <div class="search-row">
+                        <div class="search-field">
+                            <label>Nom</label>
+                            <input type="text" id="filterNom" placeholder="Ex : Dupont"
+                                   value="${escapeHtml(activeFilters.nom || '')}">
                         </div>
-                        <div class="col-md-2">
-                            <input type="text" class="form-control form-control-custom" id="filterPrenom"
-                                   placeholder="Prénom" value="${escapeHtml(activeFilters.prenom || '')}">
+                        <div class="search-field">
+                            <label>Prénom</label>
+                            <input type="text" id="filterPrenom" placeholder="Ex : Marie"
+                                   value="${escapeHtml(activeFilters.prenom || '')}">
                         </div>
-                        <div class="col-md-3">
-                            <input type="email" class="form-control form-control-custom" id="filterEmail"
-                                   placeholder="Email" value="${escapeHtml(activeFilters.email || '')}">
+                        <div class="search-field" style="flex:2;min-width:180px;">
+                            <label>Email</label>
+                            <input type="text" id="filterEmail" placeholder="Ex : marie@email.com"
+                                   value="${escapeHtml(activeFilters.email || '')}">
                         </div>
-                        <div class="col-md-2">
-                            <select class="form-select form-control-custom" id="filterSexe">
-                                <option value="">Sexe (tous)</option>
+                        <div class="search-field">
+                            <label>Sexe</label>
+                            <select id="filterSexe">
+                                <option value="">Tous</option>
                                 <option value="Homme" ${activeFilters.sexe === 'Homme' ? 'selected' : ''}>Homme</option>
                                 <option value="Femme" ${activeFilters.sexe === 'Femme' ? 'selected' : ''}>Femme</option>
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <select class="form-select form-control-custom" id="filterRole">
-                                <option value="">Rôle (tous)</option>
-                                <option value="patient"  ${activeFilters.role === 'patient'  ? 'selected' : ''}>Patient</option>
-                                <option value="medecin"  ${activeFilters.role === 'medecin'  ? 'selected' : ''}>Médecin</option>
-                                <option value="admin"    ${activeFilters.role === 'admin'    ? 'selected' : ''}>Admin</option>
+                        <div class="search-field">
+                            <label>Rôle</label>
+                            <select id="filterRole">
+                                <option value="">Tous</option>
+                                <option value="patient" ${activeFilters.role === 'patient' ? 'selected' : ''}>Patient</option>
+                                <option value="medecin" ${activeFilters.role === 'medecin' ? 'selected' : ''}>Médecin</option>
+                                <option value="admin"   ${activeFilters.role === 'admin'   ? 'selected' : ''}>Admin</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <input type="text" class="form-control form-control-custom" id="filterCasSocial"
-                                   placeholder="Cas social" value="${escapeHtml(activeFilters.cas_social || '')}">
+                        <div class="search-field">
+                            <label>Cas social</label>
+                            <input type="text" id="filterCasSocial" placeholder="Ex : CNSS"
+                                   value="${escapeHtml(activeFilters.cas_social || '')}">
                         </div>
                     </div>
-                    <div class="row g-2 align-items-center">
-                        <div class="col-md-2">
-                            <select class="form-select form-control-custom" id="sortField">
-                                <option value="id_user"        ${activeSortField === 'id_user'        ? 'selected' : ''}>Tri : ID</option>
-                                <option value="nom"            ${activeSortField === 'nom'            ? 'selected' : ''}>Tri : Nom</option>
-                                <option value="prenom"         ${activeSortField === 'prenom'         ? 'selected' : ''}>Tri : Prénom</option>
-                                <option value="age"            ${activeSortField === 'age'            ? 'selected' : ''}>Tri : Âge</option>
-                                <option value="poids"          ${activeSortField === 'poids'          ? 'selected' : ''}>Tri : Poids</option>
-                                <option value="taille"         ${activeSortField === 'taille'         ? 'selected' : ''}>Tri : Taille</option>
-                                <option value="date_naissance" ${activeSortField === 'date_naissance' ? 'selected' : ''}>Tri : Date naissance</option>
+                    <!-- Ligne 2 : tri + actions -->
+                    <div class="search-row" style="align-items:flex-end;">
+                        <div class="search-field" style="max-width:180px;">
+                            <label>Trier par</label>
+                            <select id="sortField">
+                                <option value="id_user"        ${activeSortField === 'id_user'        ? 'selected' : ''}>ID</option>
+                                <option value="nom"            ${activeSortField === 'nom'            ? 'selected' : ''}>Nom</option>
+                                <option value="prenom"         ${activeSortField === 'prenom'         ? 'selected' : ''}>Prénom</option>
+                                <option value="poids"          ${activeSortField === 'poids'          ? 'selected' : ''}>Poids</option>
+                                <option value="taille"         ${activeSortField === 'taille'         ? 'selected' : ''}>Taille</option>
+                                <option value="date_naissance" ${activeSortField === 'date_naissance' ? 'selected' : ''}>Date naissance</option>
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <select class="form-select form-control-custom" id="sortDir">
-                                <option value="ASC"  ${activeSortDir === 'ASC'  ? 'selected' : ''}>↑ ASC</option>
-                                <option value="DESC" ${activeSortDir === 'DESC' ? 'selected' : ''}>↓ DESC</option>
+                        <div class="search-field" style="max-width:120px;">
+                            <label>Ordre</label>
+                            <select id="sortDir">
+                                <option value="ASC"  ${activeSortDir === 'ASC'  ? 'selected' : ''}>↑ Croissant</option>
+                                <option value="DESC" ${activeSortDir === 'DESC' ? 'selected' : ''}>↓ Décroissant</option>
                             </select>
                         </div>
-                        <div class="col-auto">
-                            <button class="btn btn-medical" onclick="applySearchAndSort()">
-                                <i class="fas fa-search me-1"></i>Rechercher
+                        <div class="search-actions">
+                            <button type="button" class="btn-medical" onclick="applySearchAndSort()">
+                                <i class="fas fa-search"></i> Rechercher
                             </button>
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-outline-medical" onclick="resetSearchAndSort()">
-                                <i class="fas fa-times me-1"></i>Réinitialiser
+                            <button type="button" class="btn-outline-medical" onclick="resetSearchAndSort()">
+                                <i class="fas fa-times"></i> Réinitialiser
                             </button>
-                        </div>
-                        <div class="col-auto ms-auto">
-                            <span id="searchResultCount" class="text-muted small"></span>
+                            <span id="searchResultCount" class="search-result-count" style="display:none;"></span>
                         </div>
                     </div>
                 </form>
             </div>
 
-            <!-- ===== TABLEAU RÉSULTATS ===== -->
-            <div class="data-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>Résultats</h5>
+            <!-- TABLEAU RÉSULTATS -->
+            <div class="data-card" style="padding:18px 20px;">
+                <div class="d-flex justify-content-between align-items-center mb-3" style="flex-wrap:wrap;gap:10px;">
+                    <h5 class="mb-0" style="font-size:1rem;font-weight:700;">
+                        <i class="fas fa-users me-2" style="color:var(--medical-blue);"></i>
+                        Liste des utilisateurs
+                        <span id="tableCount" style="font-size:0.8rem;color:#6c7a8a;font-weight:400;margin-left:8px;">(${usersData.length})</span>
+                    </h5>
                     <div class="btn-group-actions">
-                        <button class="btn-medical btn-sm" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter</button>
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')"><i class="fas fa-chart-pie me-1"></i>Statistiques</button>
-                        <button class="btn-outline-medical btn-sm" onclick="exportToPDF('usersTable', 'utilisateurs.pdf')"><i class="fas fa-file-pdf me-1"></i>Exporter PDF</button>
+                        <button class="btn-medical btn-sm" onclick="showAddUserModal()">
+                            <i class="fas fa-plus"></i> Ajouter
+                        </button>
+                        <button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')">
+                            <i class="fas fa-chart-pie"></i> Statistiques
+                        </button>
+                        <button class="btn-outline-medical btn-sm" onclick="exportUsersTablePDF()">
+                            <i class="fas fa-file-pdf"></i> Exporter PDF
+                        </button>
                     </div>
                 </div>
-                <div id="usersTableWrapper" class="table-scroll">
+                <div class="table-scroll">
                     <div id="usersTable">
                         ${buildUsersTableHTML(usersData)}
                     </div>
@@ -1226,77 +1355,75 @@ $usersApiBase = gh_users_api_base();
 
     function buildUsersTableHTML(data) {
         if (!data || data.length === 0) {
-            return `<div class="empty-state"><i class="fas fa-search"></i><p>Aucun résultat</p></div>`;
+            return `<div class="empty-state"><i class="fas fa-search"></i><p>Aucun résultat correspondant aux critères</p></div>`;
         }
 
-        // Colonnes triables : [label, champ_api]
+        // Définition des colonnes (label, champ API pour tri, largeur indicative)
         const cols = [
-            { label: 'Nom Prénom',      field: 'nom'            },
-            { label: 'Email',           field: null             },
-            { label: 'Rôle',            field: null             },
-            { label: 'Sexe',            field: null             },
-            { label: 'Âge',             field: 'age'            },
-            { label: 'Poids',           field: 'poids'          },
-            { label: 'Taille',          field: 'taille'         },
-            { label: 'Date naissance',  field: 'date_naissance' },
-            { label: 'Cas social',      field: null             },
-            { label: 'Spécialité',      field: null             },
-            { label: 'Actions',         field: null             },
+            { label: 'Nom Prénom',     field: 'nom',            w: '150px' },
+            { label: 'Email',          field: null,             w: '180px' },
+            { label: 'Rôle',           field: null,             w: '90px'  },
+            { label: 'Sexe',           field: null,             w: '70px'  },
+            { label: 'Poids',          field: 'poids',          w: '75px'  },
+            { label: 'Taille',         field: 'taille',         w: '75px'  },
+            { label: 'Date naissance', field: 'date_naissance', w: '120px' },
+            { label: 'Cas social',     field: null,             w: '110px' },
+            { label: 'Spécialité',     field: null,             w: '110px' },
+            { label: 'Actions',        field: null,             w: '80px'  },
         ];
 
         const thCells = cols.map(c => {
-            if (!c.field) return `<th>${c.label}</th>`;
+            const style = `min-width:${c.w};`;
+            if (!c.field) return `<th style="${style}">${c.label}</th>`;
             const isActive = activeSortField === c.field;
             const nextDir  = (isActive && activeSortDir === 'ASC') ? 'DESC' : 'ASC';
-            const icon     = isActive
-                ? (activeSortDir === 'ASC' ? '▲' : '▼')
-                : '<span style="opacity:.35;">⇅</span>';
-            return `<th style="cursor:pointer;white-space:nowrap;user-select:none;"
+            const iconHtml = isActive
+                ? `<span class="sort-icon active">${activeSortDir === 'ASC' ? '▲' : '▼'}</span>`
+                : `<span class="sort-icon">⇅</span>`;
+            return `<th class="sortable${isActive ? ' sort-active' : ''}" style="${style}"
                         onclick="quickSort('${c.field}','${nextDir}')"
                         title="Trier par ${c.label}">
-                      ${c.label} ${icon}
+                      ${c.label}${iconHtml}
                     </th>`;
         }).join('');
 
-        const rows = data.map(u => {
+        const rows = data.map((u, i) => {
             const uid  = userId(u);
             const role = u.role || 'patient';
-            const age  = (u.age !== null && u.age !== undefined && u.age !== '') ? String(u.age) : '—';
             const spec = (u.specialite && String(u.specialite).trim()) ? String(u.specialite).trim() : '—';
             const roleBadge = role === 'medecin'
                 ? `<span class="status-badge status-approved">Médecin</span>`
                 : role === 'admin'
                     ? `<span class="status-badge status-reported">Admin</span>`
                     : `<span class="status-badge status-pending">Patient</span>`;
-            return `<tr>
+            const rowBg = i % 2 === 0 ? '' : 'style="background:#fafbff;"';
+            return `<tr ${rowBg}>
                 <td><strong>${escapeHtml(userFullName(u))}</strong></td>
-                <td><a href="mailto:${escapeHtml(u.email)}">${escapeHtml(u.email)}</a></td>
+                <td style="font-size:0.82rem;">${escapeHtml(u.email || '—')}</td>
                 <td>${roleBadge}</td>
                 <td>${escapeHtml(u.sexe || '—')}</td>
-                <td>${escapeHtml(age)}</td>
-                <td>${escapeHtml(displayMetric(u.poids, 'kg'))}</td>
-                <td>${escapeHtml(displayMetric(u.taille, 'm'))}</td>
+                <td style="text-align:center;">${escapeHtml(displayMetric(u.poids, 'kg'))}</td>
+                <td style="text-align:center;">${escapeHtml(displayMetric(u.taille, 'm'))}</td>
                 <td>${escapeHtml(formatDateNaissance(u.date_naissance))}</td>
                 <td>${escapeHtml(u.cas_social && String(u.cas_social).trim() ? u.cas_social : '—')}</td>
                 <td>${escapeHtml(spec)}</td>
-                <td>
+                <td style="white-space:nowrap;">
                     <button type="button" class="icon-btn edit"   onclick="editUser(${uid})"   title="Modifier"><i class="fas fa-edit"></i></button>
                     <button type="button" class="icon-btn delete" onclick="deleteUser(${uid})" title="Supprimer"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
         }).join('');
 
-        return `<table class="data-table">
+        return `<table class="data-table" id="usersDataTable">
             <thead><tr>${thCells}</tr></thead>
             <tbody>${rows}</tbody>
         </table>`;
     }
 
-    // Tri rapide depuis clic sur en-tête de colonne
+    // ── Tri rapide via clic sur en-tête ──────────────────────
     async function quickSort(field, dir) {
         activeSortField = field;
         activeSortDir   = dir;
-        // Synchronise les selects si la barre de recherche est visible
         const sf = document.getElementById('sortField');
         const sd = document.getElementById('sortDir');
         if (sf) sf.value = field;
@@ -1309,11 +1436,155 @@ $usersApiBase = gh_users_api_base();
             });
             const wrapper = document.getElementById('usersTable');
             if (wrapper) wrapper.innerHTML = buildUsersTableHTML(results);
-            const countEl = document.getElementById('searchResultCount');
-            if (countEl) countEl.textContent = `${results.length} résultat(s)`;
+            updateTableCount(results.length);
         } catch (err) {
-            showNotification(`Erreur tri: ${err.message}`, true);
+            showNotification(`Erreur tri : ${err.message}`, true);
         }
+    }
+
+    function updateTableCount(n) {
+        const el = document.getElementById('tableCount');
+        if (el) el.textContent = `(${n})`;
+        const rc = document.getElementById('searchResultCount');
+        if (rc) { rc.textContent = `${n} résultat(s)`; rc.style.display = 'inline-block'; }
+    }
+
+    // ── Export PDF : tableau identique à l'écran ─────────────
+    async function exportUsersTablePDF() {
+        showNotification('Génération du PDF…');
+        let rows;
+        try {
+            rows = await apiRequest('export-pdf', 'POST', {
+                filters:    activeFilters,
+                sort_field: activeSortField,
+                sort_dir:   activeSortDir,
+            });
+        } catch (err) {
+            showNotification(`Erreur export : ${err.message}`, true);
+            return;
+        }
+
+        if (!rows || rows.length === 0) {
+            showNotification('Aucune donnée à exporter', true);
+            return;
+        }
+
+        const roleLabel = { patient: 'Patient', medecin: 'Médecin', admin: 'Admin' };
+        const now = new Date().toLocaleString('fr-FR');
+        const filterDesc = Object.entries(activeFilters).length
+            ? Object.entries(activeFilters).map(([k, v]) => `${k}="${v}"`).join(', ')
+            : 'Aucun filtre';
+
+        // ── Construire le HTML du PDF ──────────────────────────
+        let tbodyHtml = '';
+        rows.forEach((u, i) => {
+            const bg = i % 2 === 0 ? '#ffffff' : '#f4f7fb';
+            const dn = u.date_naissance
+                ? String(u.date_naissance).slice(0, 10).split('-').reverse().join('/')
+                : '—';
+            tbodyHtml += `<tr style="background:${bg};">
+              <td>${escapeHtml(u.nom || '')} ${escapeHtml(u.prenom || '')}</td>
+              <td>${escapeHtml(u.email || '—')}</td>
+              <td>${escapeHtml(roleLabel[u.role] || u.role || '—')}</td>
+              <td>${escapeHtml(u.sexe || '—')}</td>
+              <td style="text-align:center;">${u.poids ? u.poids + ' kg' : '—'}</td>
+              <td style="text-align:center;">${u.taille ? u.taille + ' m' : '—'}</td>
+              <td>${dn}</td>
+              <td>${escapeHtml(u.cas_social || '—')}</td>
+              <td>${escapeHtml(u.specialite || '—')}</td>
+            </tr>`;
+        });
+
+        const pdfHtml = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #1a2b3c; }
+  .wrap { padding: 18px 20px; }
+  /* En-tête */
+  .header { display: flex; align-items: center; margin-bottom: 14px;
+            border-bottom: 3px solid #c0392b; padding-bottom: 10px; }
+  .logo-box { width: 36px; height: 36px; background: linear-gradient(135deg,#2b7be4,#2ecc71);
+              border-radius: 8px; margin-right: 12px; flex-shrink: 0; }
+  .header-title { flex: 1; }
+  .header-title h1 { font-size: 14px; font-weight: 800; color: #2b7be4; margin: 0 0 2px; }
+  .header-title p  { font-size: 9px; color: #6c7a8a; margin: 0; }
+  .header-meta { text-align: right; font-size: 8.5px; color: #6c7a8a; line-height: 1.7; }
+  .header-meta strong { color: #1a2b3c; }
+  /* Tableau */
+  table { width: 100%; border-collapse: collapse; font-size: 9px; margin-top: 4px; }
+  thead tr { background: #c0392b; color: #ffffff; }
+  thead th { padding: 7px 6px; text-align: left; font-weight: 700;
+             border-right: 1px solid rgba(255,255,255,0.2); }
+  thead th:last-child { border-right: none; }
+  tbody td { padding: 6px 6px; border-bottom: 1px solid #e8ecf0;
+             border-right: 1px solid #e8ecf0; }
+  tbody td:last-child { border-right: none; }
+  tbody tr:last-child td { border-bottom: none; }
+  /* Pied */
+  .footer { margin-top: 12px; font-size: 8px; color: #aaa;
+            display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo-box"></div>
+    <div class="header-title">
+      <h1>GlobalHealth Connect — Liste des Utilisateurs</h1>
+      <p>Backoffice Médical — Document confidentiel</p>
+    </div>
+    <div class="header-meta">
+      <div>Généré le <strong>${now}</strong></div>
+      <div>Filtres : <strong>${escapeHtml(filterDesc)}</strong></div>
+      <div>Tri : <strong>${activeSortField}</strong> ${activeSortDir === 'ASC' ? '↑' : '↓'}
+           &nbsp;|&nbsp; <strong>${rows.length}</strong> utilisateur(s)</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Nom Prénom</th>
+        <th>Email</th>
+        <th>Rôle</th>
+        <th>Sexe</th>
+        <th style="text-align:center;">Poids</th>
+        <th style="text-align:center;">Taille</th>
+        <th>Date naiss.</th>
+        <th>Cas social</th>
+        <th>Spécialité</th>
+      </tr>
+    </thead>
+    <tbody>${tbodyHtml}</tbody>
+  </table>
+  <div class="footer">
+    <span>GlobalHealth Connect — Confidentiel</span>
+    <span>Exporté depuis le Backoffice Médical</span>
+  </div>
+</div>
+</body>
+</html>`;
+
+        // ── Ouvrir dans un nouvel onglet et déclencher l'impression ──
+        const win = window.open('', '_blank', 'width=1100,height=800');
+        if (!win) {
+            showNotification('Autorisez les popups pour exporter le PDF', true);
+            return;
+        }
+        win.document.open();
+        win.document.write(pdfHtml);
+        win.document.close();
+
+        // Attendre le rendu puis imprimer (Ctrl+P → Enregistrer en PDF)
+        win.onload = () => {
+            setTimeout(() => {
+                win.focus();
+                win.print();
+            }, 400);
+        };
+
+        showNotification(`✅ PDF prêt — ${rows.length} utilisateur(s) — utilisez "Enregistrer en PDF" dans la boîte d'impression`);
     }
 
     async function applySearchAndSort() {
@@ -1335,7 +1606,6 @@ $usersApiBase = gh_users_api_base();
         const sortField = document.getElementById('sortField')?.value || 'id_user';
         const sortDir   = document.getElementById('sortDir')?.value   || 'DESC';
 
-        // Mémoriser l'état actif pour l'export PDF
         activeFilters   = filters;
         activeSortField = sortField;
         activeSortDir   = sortDir;
@@ -1349,13 +1619,10 @@ $usersApiBase = gh_users_api_base();
 
             const wrapper = document.getElementById('usersTable');
             if (wrapper) wrapper.innerHTML = buildUsersTableHTML(results);
-
-            const countEl = document.getElementById('searchResultCount');
-            if (countEl) countEl.textContent = `${results.length} résultat(s)`;
-
+            updateTableCount(results.length);
             showNotification(`${results.length} utilisateur(s) trouvé(s)`);
         } catch (err) {
-            showNotification(`Erreur recherche: ${err.message}`, true);
+            showNotification(`Erreur recherche : ${err.message}`, true);
         }
     }
 
@@ -1428,7 +1695,7 @@ $usersApiBase = gh_users_api_base();
 
     function clearCreateUserErrors() {
         [
-            'newUserNom', 'newUserPrenom', 'newUserAge', 'newUserSexe',
+            'newUserNom', 'newUserPrenom', 'newUserSexe',
             'newUserDateNaissance', 'newUserPoids', 'newUserTaille',
             'newUserEmail', 'newUserMotDePasse', 'newUserCasSocial',
             'newUserRole', 'newUserAdresse', 'newUserSpecialite'
@@ -1441,7 +1708,6 @@ $usersApiBase = gh_users_api_base();
 
         const nomField = getFormField('newUserNom');
         const prenomField = getFormField('newUserPrenom');
-        const ageField = getFormField('newUserAge');
         const sexeField = getFormField('newUserSexe');
         const dateNaissanceField = getFormField('newUserDateNaissance');
         const poidsField = getFormField('newUserPoids');
@@ -1455,7 +1721,6 @@ $usersApiBase = gh_users_api_base();
 
         const nom = nomField.value.trim();
         const prenom = prenomField.value.trim();
-        const ageRaw = ageField.value.trim();
         const sexe = sexeField.value.trim();
         const dateNaissance = dateNaissanceField.value.trim();
         const poidsRaw = poidsField.value.trim();
@@ -1471,17 +1736,6 @@ $usersApiBase = gh_users_api_base();
         if (!prenom) { setFieldError(prenomField, 'Le prénom est obligatoire.'); isValid = false; }
         if (nom && /\d/.test(nom)) { setFieldError(nomField, 'Le nom ne doit pas contenir de chiffres.'); isValid = false; }
         if (prenom && /\d/.test(prenom)) { setFieldError(prenomField, 'Le prénom ne doit pas contenir de chiffres.'); isValid = false; }
-
-        if (!ageRaw) {
-            setFieldError(ageField, "L'âge est obligatoire.");
-            isValid = false;
-        } else {
-            const age = Number(ageRaw);
-            if (Number.isNaN(age) || age < 0 || age > 130) {
-                setFieldError(ageField, 'Âge invalide (0 à 130).');
-                isValid = false;
-            }
-        }
 
         if (!sexe) { setFieldError(sexeField, 'Le sexe est obligatoire.'); isValid = false; }
         if (!dateNaissance) { setFieldError(dateNaissanceField, 'La date de naissance est obligatoire.'); isValid = false; }
@@ -1541,7 +1795,6 @@ $usersApiBase = gh_users_api_base();
         return {
             nom,
             prenom,
-            age: Number(ageRaw),
             sexe,
             poids: Number(poidsRaw),
             taille: Number(tailleRaw),
@@ -1558,11 +1811,10 @@ $usersApiBase = gh_users_api_base();
     }
 
     function validateUserPayload(user) {
-        const requiredFields = ['nom', 'prenom', 'age', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
+        const requiredFields = ['nom', 'prenom', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
         const missing = requiredFields.find((field) => !user[field] && user[field] !== 0);
         if (missing) return `Champ obligatoire manquant: ${missing}`;
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) return 'Email invalide';
-        if (Number(user.age) < 0 || Number(user.age) > 130) return 'Age invalide';
         if (Number(user.poids) <= 0 || Number(user.taille) <= 0) return 'Poids/Taille invalides';
         if (!['admin', 'medecin', 'patient'].includes(user.role)) return 'Rôle invalide';
         if (user.role === 'medecin' && !user.specialite) return 'La spécialité est obligatoire pour un médecin';
@@ -1616,7 +1868,6 @@ $usersApiBase = gh_users_api_base();
         if (isPatient) {
             document.getElementById('editPatientNom').value = user.nom || '';
             document.getElementById('editPatientPrenom').value = user.prenom || '';
-            document.getElementById('editPatientAge').value = user.age != null && user.age !== '' ? String(user.age) : '';
             document.getElementById('editPatientSexe').value = user.sexe || '';
             const dn = user.date_naissance ? String(user.date_naissance).slice(0, 10) : '';
             document.getElementById('editPatientDateNaissance').value = dn;
@@ -1665,7 +1916,6 @@ $usersApiBase = gh_users_api_base();
                     nom: document.getElementById('editPatientNom').value.trim(),
                     prenom: document.getElementById('editPatientPrenom').value.trim(),
                     email: document.getElementById('editPatientEmail').value.trim(),
-                    age: Number(document.getElementById('editPatientAge').value),
                     sexe: document.getElementById('editPatientSexe').value,
                     poids: Number(document.getElementById('editPatientPoids').value),
                     taille: Number(document.getElementById('editPatientTaille').value),

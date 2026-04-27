@@ -443,15 +443,35 @@ $usersApiBase = gh_users_api_base();
         .notification-toast.show { transform: translateX(0); }
         
         .form-control-medical {
-            border: 1px solid #e0e0e0;
-            border-radius: 16px;
-            padding: 12px 16px;
+            border: 1.5px solid #e0e6ef;
+            border-radius: 14px;
+            padding: 11px 15px;
+            font-size: 0.9rem;
+            transition: border-color .2s, box-shadow .2s;
         }
+        .form-control-medical:focus {
+            border-color: var(--medical-blue);
+            box-shadow: 0 0 0 3px rgba(43,123,228,0.1);
+            outline: none;
+        }
+        .form-control-medical.is-invalid {
+            border-color: #e74c3c !important;
+            box-shadow: 0 0 0 3px rgba(231,76,60,0.1) !important;
+        }
+        .field-error {
+            font-size: 0.78rem;
+            color: #e74c3c;
+            margin-top: 4px;
+            min-height: 18px;
+            font-weight: 500;
+        }
+        .form-label.fw-600 { font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; }
         .auth-modal .modal-content {
-            border-radius: 28px;
+            border-radius: 24px;
             border: none;
         }
-        
+        .auth-modal .modal-dialog { max-width: 560px; }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -820,25 +840,35 @@ $usersApiBase = gh_users_api_base();
 <div class="modal fade" id="signinModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
-            <div class="modal-header border-0">
-                <h5 class="modal-title"><i class="fas fa-sign-in-alt me-2" style="color: var(--medical-blue);"></i>Connexion</h5>
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="fas fa-sign-in-alt me-2" style="color:var(--medical-blue);"></i>Connexion</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <form id="signinForm" novalidate>
+            <div class="modal-body pt-2">
+                <form id="signinForm" novalidate autocomplete="on">
                     <div class="mb-3">
-                        <label>Email</label>
-                        <input type="email" class="form-control form-control-medical" id="signinEmail">
+                        <label class="form-label fw-600" for="signinEmail">Email <span style="color:#e74c3c;">*</span></label>
+                        <input type="email" class="form-control form-control-medical" id="signinEmail"
+                               placeholder="votre@email.com" autocomplete="email">
+                        <div class="field-error" id="err-signinEmail"></div>
                     </div>
                     <div class="mb-3">
-                        <label>Mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signinPassword">
+                        <label class="form-label fw-600" for="signinPassword">Mot de passe <span style="color:#e74c3c;">*</span></label>
+                        <div style="position:relative;">
+                            <input type="password" class="form-control form-control-medical" id="signinPassword"
+                                   placeholder="••••••••" autocomplete="current-password" style="padding-right:42px;">
+                            <button type="button" onclick="togglePwd('signinPassword',this)"
+                                    style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6c7a8a;cursor:pointer;padding:0;">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="field-error" id="err-signinPassword"></div>
                     </div>
-                    <button type="submit" class="btn btn-medical w-100">Se connecter</button>
+                    <button type="submit" class="btn btn-medical w-100 mt-1">Se connecter</button>
                     <div class="text-center mt-3">
                         <small><a href="#" onclick="switchToForgotPassword()">Mot de passe oublié ?</a></small>
                     </div>
-                    <div class="text-center mt-2">
+                    <div class="text-center mt-1">
                         <small>Pas encore de compte ? <a href="#" onclick="switchToSignUp()">S'inscrire</a></small>
                     </div>
                 </form>
@@ -879,77 +909,129 @@ $usersApiBase = gh_users_api_base();
 </div>
 
 <div class="modal fade" id="signupModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content auth-modal">
-            <div class="modal-header border-0">
-                <h5 class="modal-title"><i class="fas fa-user-plus me-2" style="color: var(--medical-blue);"></i>Inscription</h5>
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2" style="color:var(--medical-blue);"></i>Inscription</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <form id="signupForm" novalidate>
-                    <div class="mb-3">
-                        <label>Nom complet</label>
-                        <input type="text" class="form-control form-control-medical" id="signupName">
-                    </div>
+            <div class="modal-body pt-2">
+                <form id="signupForm" novalidate autocomplete="off">
+
+                    <!-- Nom / Prénom -->
                     <div class="row gx-3">
                         <div class="col-md-6 mb-3">
-                            <label>Email</label>
-                            <input type="email" class="form-control form-control-medical" id="signupEmail">
+                            <label class="form-label fw-600" for="signupNom">Nom <span style="color:#e74c3c;">*</span></label>
+                            <input type="text" class="form-control form-control-medical" id="signupNom"
+                                   placeholder="Ex : Dupont" autocomplete="family-name"
+                                   oninput="this.value=this.value.replace(/[0-9]/g,'')">
+                            <div class="field-error" id="err-signupNom"></div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label>Rôle</label>
+                            <label class="form-label fw-600" for="signupPrenom">Prénom <span style="color:#e74c3c;">*</span></label>
+                            <input type="text" class="form-control form-control-medical" id="signupPrenom"
+                                   placeholder="Ex : Marie" autocomplete="given-name"
+                                   oninput="this.value=this.value.replace(/[0-9]/g,'')">
+                            <div class="field-error" id="err-signupPrenom"></div>
+                        </div>
+                    </div>
+
+                    <!-- Email / Rôle -->
+                    <div class="row gx-3">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupEmail">Email <span style="color:#e74c3c;">*</span></label>
+                            <input type="email" class="form-control form-control-medical" id="signupEmail"
+                                   placeholder="votre@email.com" autocomplete="email">
+                            <div class="field-error" id="err-signupEmail"></div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupRole">Rôle <span style="color:#e74c3c;">*</span></label>
                             <select class="form-select form-control-medical" id="signupRole" onchange="toggleSignupSpecialty()">
                                 <option value="patient">Patient</option>
                                 <option value="medecin">Médecin</option>
                             </select>
                         </div>
                     </div>
+
+                    <!-- Spécialité (médecin) -->
                     <div class="mb-3" id="signupSpecialtyField" style="display:none;">
-                        <label>Spécialité</label>
-                        <input type="text" class="form-control form-control-medical" id="signupSpecialite" placeholder="Ex: Cardiologue">
+                        <label class="form-label fw-600" for="signupSpecialite">Spécialité <span style="color:#e74c3c;">*</span></label>
+                        <input type="text" class="form-control form-control-medical" id="signupSpecialite"
+                               placeholder="Ex : Cardiologue">
+                        <div class="field-error" id="err-signupSpecialite"></div>
                     </div>
+
+                    <!-- Sexe / Date naissance -->
                     <div class="row gx-3">
-                        <div class="col-md-4 mb-3">
-                            <label>Âge</label>
-                            <input type="number" min="0" class="form-control form-control-medical" id="signupAge">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label>Sexe</label>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupSexe">Sexe <span style="color:#e74c3c;">*</span></label>
                             <select class="form-select form-control-medical" id="signupSexe">
                                 <option value="">Sélectionner</option>
                                 <option value="Homme">Homme</option>
                                 <option value="Femme">Femme</option>
-                                <option value="autre">Autre</option>
                             </select>
+                            <div class="field-error" id="err-signupSexe"></div>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label>Date de naissance</label>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupDateNaissance">Date de naissance <span style="color:#e74c3c;">*</span></label>
                             <input type="date" class="form-control form-control-medical" id="signupDateNaissance">
+                            <div class="field-error" id="err-signupDateNaissance"></div>
                         </div>
                     </div>
+
+                    <!-- Poids / Taille -->
                     <div class="row gx-3">
                         <div class="col-md-6 mb-3">
-                            <label>Poids (kg)</label>
-                            <input type="number" step="0.1" min="0" class="form-control form-control-medical" id="signupPoids">
+                            <label class="form-label fw-600" for="signupPoids">Poids (kg) <span style="color:#e74c3c;">*</span></label>
+                            <input type="number" step="0.1" min="1" class="form-control form-control-medical"
+                                   id="signupPoids" placeholder="Ex : 70">
+                            <div class="field-error" id="err-signupPoids"></div>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label>Taille (cm)</label>
-                            <input type="number" step="0.1" min="0" class="form-control form-control-medical" id="signupTaille">
+                            <label class="form-label fw-600" for="signupTaille">Taille (m) <span style="color:#e74c3c;">*</span></label>
+                            <input type="number" step="0.01" min="0.5" max="2.5" class="form-control form-control-medical"
+                                   id="signupTaille" placeholder="Ex : 1.75">
+                            <div class="field-error" id="err-signupTaille"></div>
                         </div>
                     </div>
+
+                    <!-- Adresse -->
                     <div class="mb-3">
-                        <label>Adresse</label>
-                        <input type="text" class="form-control form-control-medical" id="signupAdresse">
+                        <label class="form-label fw-600" for="signupAdresse">Adresse <span style="color:#e74c3c;">*</span></label>
+                        <input type="text" class="form-control form-control-medical" id="signupAdresse"
+                               placeholder="Ex : 12 rue de la Paix, Casablanca">
+                        <div class="field-error" id="err-signupAdresse"></div>
                     </div>
-                    <div class="mb-3">
-                        <label>Mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupPassword">
+
+                    <!-- Mot de passe -->
+                    <div class="row gx-3">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupPassword">Mot de passe <span style="color:#e74c3c;">*</span></label>
+                            <div style="position:relative;">
+                                <input type="password" class="form-control form-control-medical" id="signupPassword"
+                                       placeholder="Min. 6 caractères" autocomplete="new-password" style="padding-right:42px;">
+                                <button type="button" onclick="togglePwd('signupPassword',this)"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6c7a8a;cursor:pointer;padding:0;">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="field-error" id="err-signupPassword"></div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-600" for="signupConfirmPassword">Confirmer le mot de passe <span style="color:#e74c3c;">*</span></label>
+                            <div style="position:relative;">
+                                <input type="password" class="form-control form-control-medical" id="signupConfirmPassword"
+                                       placeholder="Répétez le mot de passe" autocomplete="new-password" style="padding-right:42px;">
+                                <button type="button" onclick="togglePwd('signupConfirmPassword',this)"
+                                        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6c7a8a;cursor:pointer;padding:0;">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="field-error" id="err-signupConfirmPassword"></div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label>Confirmer le mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupConfirmPassword">
-                    </div>
-                    <button type="submit" class="btn btn-medical w-100">S'inscrire</button>
+
+                    <button type="submit" class="btn btn-medical w-100 mt-1">S'inscrire</button>
                     <div class="text-center mt-3">
                         <small>Déjà inscrit ? <a href="#" onclick="switchToSignIn()">Se connecter</a></small>
                     </div>
@@ -992,10 +1074,6 @@ $usersApiBase = gh_users_api_base();
                         <input type="text" class="form-control form-control-medical" id="profileSpecialite" readonly>
                     </div>
                     <div class="row gx-3">
-                        <div class="col-md-6 mb-3">
-                            <label>Âge</label>
-                            <input type="text" class="form-control form-control-medical" id="profileAge" readonly>
-                        </div>
                         <div class="col-md-6 mb-3">
                             <label>Sexe</label>
                             <input type="text" class="form-control form-control-medical" id="profileSexe" readonly>
@@ -1078,14 +1156,14 @@ $usersApiBase = gh_users_api_base();
     function toggleSignupSpecialty() {
         const isMedecin = document.getElementById('signupRole').value === 'medecin';
         document.getElementById('signupSpecialtyField').style.display = isMedecin ? 'block' : 'none';
+        if (!isMedecin) fClear('signupSpecialite');
     }
 
     function validateSignupUser(user) {
-        const requiredFields = ['nom', 'prenom', 'age', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
+        const requiredFields = ['nom', 'prenom', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
         const missing = requiredFields.find((field) => !user[field] && user[field] !== 0);
         if (missing) return `Champ obligatoire manquant: ${missing}`;
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) return 'Email invalide';
-        if (Number(user.age) < 0 || Number(user.age) > 130) return 'Age invalide';
         if (Number(user.poids) <= 0 || Number(user.taille) <= 0) return 'Poids/Taille invalides';
         if (!['admin', 'medecin', 'patient'].includes(user.role)) return 'Rôle invalide';
         if (user.role === 'medecin' && !user.specialite) return 'La spécialité est obligatoire pour un médecin';
@@ -1157,19 +1235,6 @@ $usersApiBase = gh_users_api_base();
             specialiteRow.style.display = 'none';
         }
         
-        // Calculer l'âge à partir de la date de naissance
-        let age = '';
-        if (currentPatient.date_naissance) {
-            const birthDate = new Date(currentPatient.date_naissance);
-            const today = new Date();
-            age = today.getFullYear() - birthDate.getFullYear();
-            const monthDiff = today.getMonth() - birthDate.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
-            age = age.toString();
-        }
-        document.getElementById('profileAge').value = age;
         document.getElementById('profileSexe').value = currentPatient.sexe || '';
         document.getElementById('profilePoids').value = currentPatient.poids || '';
         document.getElementById('profileTaille').value = currentPatient.taille || '';
@@ -1195,112 +1260,184 @@ $usersApiBase = gh_users_api_base();
     function showSignUpModal() { new bootstrap.Modal(document.getElementById('signupModal')).show(); }
     function switchToSignUp() { bootstrap.Modal.getInstance(document.getElementById('signinModal')).hide(); showSignUpModal(); }
     function switchToSignIn() { bootstrap.Modal.getInstance(document.getElementById('signupModal')).hide(); showSignInModal(); }
-    
-    document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const password = document.getElementById('signupPassword').value;
-        const confirm = document.getElementById('signupConfirmPassword').value;
-        
-        if(password !== confirm) {
-            showNotification('Les mots de passe ne correspondent pas', true);
-            return;
-        }
-        
-        const fullName = document.getElementById('signupName').value.trim();
-        const nameParts = fullName.split(/\s+/);
-        const nom = nameParts.shift() || '';
-        const prenom = nameParts.join(' ') || 'Patient';
-        const email = document.getElementById('signupEmail').value.trim();
-        const role = document.getElementById('signupRole').value;
-        const age = parseInt(document.getElementById('signupAge').value, 10) || 0;
-        const sexe = document.getElementById('signupSexe').value;
-        const poids = parseFloat(document.getElementById('signupPoids').value) || 0;
-        const taille = parseFloat(document.getElementById('signupTaille').value) || 0;
-        const dateNaissance = document.getElementById('signupDateNaissance').value;
-        const adresse = document.getElementById('signupAdresse').value.trim();
-        const specialite = role === 'medecin' ? document.getElementById('signupSpecialite').value.trim() : null;
 
-        const userData = {
-            nom,
-            prenom,
-            age,
-            sexe,
-            poids,
-            taille,
-            email,
-            mot_de_passe: password,
-            date_naissance: dateNaissance,
-            adresse,
-            role,
-            specialite,
-            name: `${nom} ${prenom}`.trim()
-        };
+    // ── Helpers validation frontoffice ────────────────────────
+    function fErr(id, msg) {
+        const el = document.getElementById('err-' + id);
+        const inp = document.getElementById(id);
+        if (el)  { el.textContent = msg; }
+        if (inp) { inp.classList.toggle('is-invalid', msg !== ''); }
+    }
+    function fClear(id) { fErr(id, ''); }
+    function fClearAll(ids) { ids.forEach(fClear); }
 
-        const error = validateSignupUser(userData);
-        if (error) {
-            showNotification(error, true);
-            return;
-        }
+    function togglePwd(inputId, btn) {
+        const inp = document.getElementById(inputId);
+        if (!inp) return;
+        const show = inp.type === 'password';
+        inp.type = show ? 'text' : 'password';
+        btn.innerHTML = show ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+    }
 
-        try {
-            const newUser = await apiRequest('create', 'POST', userData);
-
-            currentPatient = { id: newUser.id_user, name: newUser.name, email: newUser.email };
-            localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
-
-            bootstrap.Modal.getInstance(document.getElementById('signupModal')).hide();
-            document.getElementById('signupForm').reset();
-            updateUIForConnectedPatient();
-            loadMedicalRecords();
-            loadFollowups();
-            showNotification(`Bienvenue ${newUser.name} ! Vous êtes maintenant connecté.`);
-        } catch (error) {
-            showNotification(error.message, true);
-        }
-    });
-    
+    // ── Connexion ─────────────────────────────────────────────
     document.getElementById('signinForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('signinEmail').value.trim();
-        const password = document.getElementById('signinPassword').value;
+        fClearAll(['signinEmail', 'signinPassword']);
 
-        if (email === '' || password === '') {
-            showNotification('Email et mot de passe sont obligatoires', true);
-            return;
+        const email    = document.getElementById('signinEmail').value.trim();
+        const password = document.getElementById('signinPassword').value;
+        let valid = true;
+
+        if (!email) {
+            fErr('signinEmail', "L'email est obligatoire."); valid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            fErr('signinEmail', 'Format email invalide (ex : nom@domaine.com).'); valid = false;
         }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            showNotification('Email invalide', true);
-            return;
+        if (!password) {
+            fErr('signinPassword', 'Le mot de passe est obligatoire.'); valid = false;
+        } else if (password.length < 6) {
+            fErr('signinPassword', 'Minimum 6 caractères.'); valid = false;
         }
+        if (!valid) return;
 
         try {
-            const patient = await apiRequest('login-patient', 'POST', {
-                email,
-                mot_de_passe: password
-            });
+            const patient = await apiRequest('login-patient', 'POST', { email, mot_de_passe: password });
             currentPatient = {
-                id: patient.id_user,
-                name: patient.name,
-                email: patient.email,
-                role: patient.role || 'patient',
-                specialite: patient.specialite || null,
+                id: patient.id_user, name: patient.name, email: patient.email,
+                role: patient.role || 'patient', specialite: patient.specialite || null,
                 avatar: patient.avatar || null,
-                age: patient.age || null,
-                sexe: patient.sexe || null,
-                poids: patient.poids || null,
-                taille: patient.taille || null,
-                date_naissance: patient.date_naissance || null,
+                sexe: patient.sexe || null, poids: patient.poids || null,
+                taille: patient.taille || null, date_naissance: patient.date_naissance || null,
                 adresse: patient.adresse || null
             };
             localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
             bootstrap.Modal.getInstance(document.getElementById('signinModal')).hide();
             document.getElementById('signinForm').reset();
+            fClearAll(['signinEmail', 'signinPassword']);
             updateUIForConnectedPatient();
             loadMedicalRecords();
             loadFollowups();
             showNotification(`Bon retour ${patient.name} !`);
         } catch (error) {
-            showNotification(error.message, true);
+            fErr('signinPassword', error.message);
+        }
+    });
+
+    // ── Inscription ───────────────────────────────────────────
+    document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const allFields = [
+            'signupNom','signupPrenom','signupEmail','signupSexe',
+            'signupDateNaissance','signupPoids','signupTaille','signupAdresse',
+            'signupPassword','signupConfirmPassword','signupSpecialite'
+        ];
+        fClearAll(allFields);
+
+        const nom             = document.getElementById('signupNom').value.trim();
+        const prenom          = document.getElementById('signupPrenom').value.trim();
+        const email           = document.getElementById('signupEmail').value.trim();
+        const role            = document.getElementById('signupRole').value;
+        const sexe            = document.getElementById('signupSexe').value;
+        const dateNaissance   = document.getElementById('signupDateNaissance').value;
+        const poidsRaw        = document.getElementById('signupPoids').value.trim();
+        const tailleRaw       = document.getElementById('signupTaille').value.trim();
+        const adresse         = document.getElementById('signupAdresse').value.trim();
+        const password        = document.getElementById('signupPassword').value;
+        const confirmPassword = document.getElementById('signupConfirmPassword').value;
+        const specialite      = role === 'medecin' ? document.getElementById('signupSpecialite').value.trim() : null;
+
+        let valid = true;
+
+        // Nom
+        if (!nom) {
+            fErr('signupNom', 'Le nom est obligatoire.'); valid = false;
+        } else if (/\d/.test(nom)) {
+            fErr('signupNom', 'Le nom ne doit contenir que des lettres.'); valid = false;
+        }
+        // Prénom
+        if (!prenom) {
+            fErr('signupPrenom', 'Le prénom est obligatoire.'); valid = false;
+        } else if (/\d/.test(prenom)) {
+            fErr('signupPrenom', 'Le prénom ne doit contenir que des lettres.'); valid = false;
+        }
+        // Email
+        if (!email) {
+            fErr('signupEmail', "L'email est obligatoire."); valid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            fErr('signupEmail', 'Format email invalide (ex : nom@domaine.com).'); valid = false;
+        }
+        // Sexe
+        if (!sexe) {
+            fErr('signupSexe', 'Veuillez sélectionner un sexe.'); valid = false;
+        }
+        // Date naissance
+        if (!dateNaissance) {
+            fErr('signupDateNaissance', 'La date de naissance est obligatoire.'); valid = false;
+        }
+        // Poids
+        if (!poidsRaw) {
+            fErr('signupPoids', 'Le poids est obligatoire.'); valid = false;
+        } else if (Number(poidsRaw) <= 0) {
+            fErr('signupPoids', 'Poids invalide (doit être > 0).'); valid = false;
+        }
+        // Taille
+        if (!tailleRaw) {
+            fErr('signupTaille', 'La taille est obligatoire.'); valid = false;
+        } else {
+            const t = Number(tailleRaw);
+            if (isNaN(t) || t <= 0 || t > 2.5) {
+                fErr('signupTaille', 'Taille invalide (ex : 1.75 pour 175 cm).'); valid = false;
+            }
+        }
+        // Adresse
+        if (!adresse) {
+            fErr('signupAdresse', "L'adresse est obligatoire."); valid = false;
+        }
+        // Spécialité médecin
+        if (role === 'medecin' && !specialite) {
+            fErr('signupSpecialite', 'La spécialité est obligatoire pour un médecin.'); valid = false;
+        }
+        // Mot de passe
+        if (!password) {
+            fErr('signupPassword', 'Le mot de passe est obligatoire.'); valid = false;
+        } else if (password.length < 6) {
+            fErr('signupPassword', 'Minimum 6 caractères.'); valid = false;
+        }
+        // Confirmation
+        if (!confirmPassword) {
+            fErr('signupConfirmPassword', 'Veuillez confirmer le mot de passe.'); valid = false;
+        } else if (password && password !== confirmPassword) {
+            fErr('signupConfirmPassword', 'Les mots de passe ne correspondent pas.'); valid = false;
+        }
+
+        if (!valid) return;
+
+        const userData = {
+            nom, prenom,
+            sexe,
+            poids: Number(poidsRaw),
+            taille: Number(tailleRaw),
+            email,
+            mot_de_passe: password,
+            date_naissance: dateNaissance,
+            adresse, role, specialite,
+            name: `${nom} ${prenom}`.trim()
+        };
+
+        try {
+            const newUser = await apiRequest('create', 'POST', userData);
+            currentPatient = { id: newUser.id_user, name: newUser.name, email: newUser.email };
+            localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
+            bootstrap.Modal.getInstance(document.getElementById('signupModal')).hide();
+            document.getElementById('signupForm').reset();
+            fClearAll(allFields);
+            updateUIForConnectedPatient();
+            loadMedicalRecords();
+            loadFollowups();
+            showNotification(`Bienvenue ${newUser.name} ! Vous êtes maintenant connecté.`);
+        } catch (error) {
+            fErr('signupEmail', error.message);
         }
     });
 
@@ -1371,7 +1508,6 @@ $usersApiBase = gh_users_api_base();
                     role: userData.role || 'patient',
                     specialite: userData.specialite || null,
                     avatar: currentPatient.avatar || null, // Garder l'avatar existant
-                    age: userData.age || null,
                     sexe: userData.sexe || null,
                     poids: userData.poids || null,
                     taille: userData.taille || null,

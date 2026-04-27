@@ -12,7 +12,7 @@ class User
 
     public function getAll(): array
     {
-        $sql = "SELECT id_user, nom, prenom, age, sexe, poids, taille, email, cas_social, date_naissance, adresse, specialite, role
+        $sql = "SELECT id_user, nom, prenom, sexe, poids, taille, email, cas_social, date_naissance, adresse, specialite, role
                 FROM utilisateur
                 ORDER BY id_user DESC";
         return $this->db->query($sql)->fetchAll();
@@ -47,15 +47,14 @@ class User
     public function create(array $data): int
     {
         $sql = "INSERT INTO utilisateur
-            (nom, prenom, age, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, role)
+            (nom, prenom, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, role)
             VALUES
-            (:nom, :prenom, :age, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :role)";
+            (:nom, :prenom, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :role)";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             'nom' => $data['nom'],
             'prenom' => $data['prenom'],
-            'age' => $data['age'],
             'sexe' => $data['sexe'],
             'poids' => $data['poids'],
             'taille' => $data['taille'],
@@ -75,7 +74,7 @@ class User
     {
         $allowed = [
             'nom', 'prenom', 'email', 'cas_social', 'specialite',
-            'age', 'sexe', 'poids', 'taille', 'date_naissance', 'adresse',
+            'sexe', 'poids', 'taille', 'date_naissance', 'adresse',
         ];
         $sets = [];
         $params = ['id_user' => $idUser];
@@ -118,7 +117,7 @@ class User
      */
     public function search(array $filters = [], string $sortField = 'id_user', string $sortDir = 'DESC'): array
     {
-        $allowedSort = ['nom', 'prenom', 'age', 'poids', 'taille', 'date_naissance', 'id_user'];
+        $allowedSort = ['nom', 'prenom', 'poids', 'taille', 'date_naissance', 'id_user'];
         $sortField = in_array($sortField, $allowedSort, true) ? $sortField : 'id_user';
         $sortDir   = strtoupper($sortDir) === 'ASC' ? 'ASC' : 'DESC';
 
@@ -151,7 +150,7 @@ class User
         }
 
         $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
-        $sql   = "SELECT id_user, nom, prenom, age, sexe, poids, taille, email,
+        $sql   = "SELECT id_user, nom, prenom, sexe, poids, taille, email,
                          cas_social, date_naissance, adresse, specialite, role
                   FROM utilisateur
                   {$where}
@@ -175,11 +174,11 @@ class User
      */
     public function sortBy(string $field, string $dir = 'ASC'): array
     {
-        $allowed = ['nom', 'prenom', 'age', 'poids', 'taille', 'date_naissance', 'id_user'];
+        $allowed = ['nom', 'prenom', 'poids', 'taille', 'date_naissance', 'id_user'];
         $field   = in_array($field, $allowed, true) ? $field : 'id_user';
         $dir     = strtoupper($dir) === 'ASC' ? 'ASC' : 'DESC';
 
-        $sql = "SELECT id_user, nom, prenom, age, sexe, poids, taille, email,
+        $sql = "SELECT id_user, nom, prenom, sexe, poids, taille, email,
                        cas_social, date_naissance, adresse, specialite, role
                 FROM utilisateur
                 ORDER BY {$field} {$dir}";
@@ -278,7 +277,6 @@ class User
                 'id_user'        => (int) $row['id_user'],
                 'nom'            => $row['nom']            ?? '',
                 'prenom'         => $row['prenom']         ?? '',
-                'age'            => $row['age']            ?? null,
                 'sexe'           => $row['sexe']           ?? '',
                 'poids'          => $row['poids']          ?? null,
                 'taille'         => $row['taille']         ?? null,
