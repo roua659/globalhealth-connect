@@ -136,13 +136,13 @@
 
                 <div class="form-update">
                     <h4><i class="fas fa-pen-to-square"></i> Mettre à jour mes informations</h4>
-                    <form method="POST" action="?controller=patient&action=update_suivi">
+                    <form method="POST" action="?controller=patient&action=suivis">
                         <input type="hidden" name="id_suivie" value="<?php echo $s['id_suivie']; ?>">
                         
                         <div class="f-row">
                             <div class="f-group">
                                 <label class="f-label">Mon Poids (kg)</label>
-                                <input type="number" step="0.1" name="poids" class="f-input" value="<?php echo $s['poids']; ?>" placeholder="Ex: 75.5">
+                                <input type="text" name="poids" class="f-input" value="<?php echo htmlspecialchars($s['poids'] ?? ''); ?>" placeholder="Ex: 75.5">
                             </div>
                             <div class="f-group">
                                 <label class="f-label">Ma Tension</label>

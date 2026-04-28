@@ -76,6 +76,19 @@
         .alert { padding:16px; border-radius:12px; margin-bottom:24px; font-weight:600; display:flex; align-items:center; gap:10px; }
         .alert-success { background:#f0fdf4; color:#16a34a; border: 1px solid #dcfce7; }
         .alert-error { background:#fef2f2; color:#ef4444; border: 1px solid #fee2e2; }
+
+        /* Style pour les messages d'erreur en rouge */
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 4px;
+            display: none;
+        }
+        .f-control.is-invalid {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2;
+        }
     </style>
 </head>
 <body>
@@ -109,12 +122,12 @@
     <div class="page-split">
         <div class="form-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Nouvelle Consultation</h3>
-            <form method="POST">
+            <form method="POST" id="consultationForm" novalidate>
                 <input type="hidden" name="action" value="add">
                 
                 <div class="f-group">
-                    <label class="f-label">Rendez-vous associé</label>
-                    <select name="id_rdv" class="f-control" required>
+                    <label class="f-label">Rendez-vous associé <span style="color:#ef4444;">*</span></label>
+                    <select name="id_rdv" id="id_rdv" class="f-control">
                         <option value="">— Sélectionner un RDV —</option>
                         <?php foreach ($rendezvous as $r): ?>
                             <option value="<?php echo $r['id_rdv']; ?>">
@@ -123,16 +136,19 @@
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="error-msg" id="err_id_rdv">Veuillez choisir un rendez-vous.</div>
                 </div>
 
                 <div class="f-group">
-                    <label class="f-label">Diagnostic</label>
-                    <textarea name="diagnostic" class="f-control" rows="3" required></textarea>
+                    <label class="f-label">Diagnostic <span style="color:#ef4444;">*</span></label>
+                    <textarea name="diagnostic" id="diagnostic" class="f-control" rows="3"></textarea>
+                    <div class="error-msg" id="err_diagnostic">Diagnostic obligatoire (min 3 car.).</div>
                 </div>
 
                 <div class="f-group">
-                    <label class="f-label">Traitement prescrit</label>
-                    <textarea name="traitement" class="f-control" rows="3" required></textarea>
+                    <label class="f-label">Traitement prescrit <span style="color:#ef4444;">*</span></label>
+                    <textarea name="traitement" id="traitement" class="f-control" rows="3"></textarea>
+                    <div class="error-msg" id="err_traitement">Traitement obligatoire (min 3 car.).</div>
                 </div>
 
                 <div class="f-group">
@@ -177,6 +193,45 @@
         </div>
     </div>
 </main>
+
+<script>
+document.getElementById('consultationForm').addEventListener('submit', function(e) {
+    const fields = {
+        id_rdv:     { input: document.getElementById('id_rdv'),     err: document.getElementById('err_id_rdv') },
+        diagnostic: { input: document.getElementById('diagnostic'), err: document.getElementById('err_diagnostic') },
+        traitement: { input: document.getElementById('traitement'), err: document.getElementById('err_traitement') }
+    };
+
+    let hasError = false;
+
+    // Reset
+    for(let k in fields) {
+        fields[k].input.classList.remove('is-invalid');
+        fields[k].err.style.display = 'none';
+    }
+
+    if (!fields.id_rdv.input.value) {
+        showErr(fields.id_rdv, "Veuillez sélectionner un rendez-vous.");
+        hasError = true;
+    }
+    if (fields.diagnostic.input.value.trim().length < 3) {
+        showErr(fields.diagnostic, "Le diagnostic doit faire au moins 3 caractères.");
+        hasError = true;
+    }
+    if (fields.traitement.input.value.trim().length < 3) {
+        showErr(fields.traitement, "Le traitement doit faire au moins 3 caractères.");
+        hasError = true;
+    }
+
+    if (hasError) { e.preventDefault(); }
+});
+
+function showErr(f, m) {
+    f.input.classList.add('is-invalid');
+    f.err.textContent = m;
+    f.err.style.display = 'block';
+}
+</script>
 
 </body>
 </html>

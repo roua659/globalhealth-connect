@@ -162,8 +162,7 @@ class MedecinController {
             $action = $_POST['action'];
 
             if ($action === 'add') {
-                $id_patient          = intval($_POST['id_patient'] ?? 0);
-                $id_consultation     = intval($_POST['id_consultation'] ?? 0) ?: null;
+                $id_consultation     = intval($_POST['id_consultation'] ?? 0);
                 $date_suivi          = trim($_POST['date_suivi'] ?? '');
                 $poids               = $_POST['poids'] !== '' ? floatval($_POST['poids']) : null;
                 $tension             = trim($_POST['tension'] ?? '');
@@ -173,32 +172,54 @@ class MedecinController {
                 $activite            = trim($_POST['activite_physique'] ?? '');
                 $prochain_rdv        = trim($_POST['prochain_rdv'] ?? '');
 
-                if (!$id_patient || !$date_suivi || !$etat_general) {
-                    $missing = [];
-                    if (!$id_patient) $missing[] = "patient";
-                    if (!$date_suivi) $missing[] = "date";
-                    if (!$etat_general) $missing[] = "état général";
-                    $message = "Veuillez remplir les champs obligatoires : " . implode(", ", $missing) . ".";
+                // Validation serveur
+                $errors = [];
+                if (!$id_consultation) $errors[] = "La consultation est obligatoire.";
+                if (empty($date_suivi)) $errors[] = "La date du suivi est obligatoire.";
+                if (empty($etat_general)) $errors[] = "L'état général doit être renseigné.";
+                
+                // Vérification format date
+                if (!empty($date_suivi) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_suivi)) {
+                    $errors[] = "Format de date invalide (AAAA-MM-JJ attendu).";
+                }
+
+                // Vérification poids
+                if ($poids !== null && ($poids <= 0 || $poids > 500)) {
+                    $errors[] = "Le poids doit être compris entre 0 et 500 kg.";
+                }
+
+                if (!empty($errors)) {
+                    $message = implode(" | ", $errors);
                     $messageType = 'error';
                 } else {
-                    $model = new SuivieModel();
-                    $model->id_patient          = $id_patient;
-                    $model->id_medecin          = $medecinId;
-                    $model->id_consultation     = $id_consultation;
-                    $model->date_suivi          = $date_suivi;
-                    $model->poids               = $poids;
-                    $model->tension             = $tension;
-                    $model->etat_general        = $etat_general;
-                    $model->analyses_a_realiser = $analyses;
-                    $model->regime_alimentaire  = $regime;
-                    $model->activite_physique   = $activite;
-                    $model->prochain_rdv        = $prochain_rdv;
+                    // Récupérer le patient lié à la consultation
+                    $stmt = $this->db->prepare("SELECT r.id_patient FROM consultation c JOIN rendezvous r ON c.id_rdv = r.id_rdv WHERE c.id_consultation = ?");
+                    $stmt->execute([$id_consultation]);
+                    $res = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                    if ($model->create()) {
-                        $message = "Suivi ajouté avec succès !";
-                        $messageType = 'success';
+                    if ($res) {
+                        $model = new SuivieModel();
+                        $model->id_patient          = $res['id_patient'];
+                        $model->id_medecin          = $medecinId;
+                        $model->id_consultation     = $id_consultation;
+                        $model->date_suivi          = $date_suivi;
+                        $model->poids               = $poids;
+                        $model->tension             = $tension;
+                        $model->etat_general        = $etat_general;
+                        $model->analyses_a_realiser = $analyses;
+                        $model->regime_alimentaire  = $regime;
+                        $model->activite_physique   = $activite;
+                        $model->prochain_rdv        = $prochain_rdv;
+
+                        if ($model->create()) {
+                            $message = "Suivi ajouté avec succès (lié à la consultation N°$id_consultation) !";
+                            $messageType = 'success';
+                        } else {
+                            $message = "Erreur technique lors de l'enregistrement.";
+                            $messageType = 'error';
+                        }
                     } else {
-                        $message = "Erreur lors de l'ajout en base de données.";
+                        $message = "L'ID de consultation sélectionné est invalide ou n'existe pas.";
                         $messageType = 'error';
                     }
                 }

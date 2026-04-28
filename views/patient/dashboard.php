@@ -106,36 +106,73 @@
     <div class="stats-grid">
         <div class="stat-card">
             <h3><i class="fas fa-clipboard-list"></i>Consultations</h3>
-            <div class="stat-val"><?php echo count($consultations); ?></div>
-            <div class="stat-desc">Dernière visite le <?php echo $consultations[0]['date_rdv'] ?? 'N/A'; ?></div>
+            <div class="stat-val"><?php echo $nbConsultations; ?></div>
+            <div class="stat-desc">Dernière visite le <?php echo $dernieresConsultations[0]['date_rdv'] ?? 'N/A'; ?></div>
         </div>
         <div class="stat-card">
             <h3><i class="fas fa-clock"></i>Suivis Actifs</h3>
-            <div class="stat-val"><?php echo count($suivis); ?></div>
+            <div class="stat-val"><?php echo $nbSuivis; ?></div>
             <div class="stat-desc">Mise à jour régulière conseillée</div>
+        </div>
+        <div class="stat-card">
+            <h3><i class="fas fa-calendar-check"></i>Rendez-vous</h3>
+            <div class="stat-val"><?php echo $nbRdv; ?></div>
+            <div class="stat-desc"><?php echo $prochainRdv ? 'Prochain : '.$prochainRdv['date_rdv'] : 'Aucun RDV à venir'; ?></div>
         </div>
     </div>
 
     <div class="section-card">
         <div class="section-header">
-            <h3 class="section-title"><i class="fas fa-notes-medical"></i>Prescriptions Récentes</h3>
-            <a href="?controller=patient&action=suivis" style="font-size:0.8rem; font-weight:700; color:var(--primary); text-decoration:none;">Voir tout <i class="fas fa-arrow-right"></i></a>
+            <h3 class="section-title"><i class="fas fa-notes-medical"></i>Dernières Consultations</h3>
+            <a href="?controller=patient&action=consultations" style="font-size:0.8rem; font-weight:700; color:var(--primary); text-decoration:none;">Voir tout <i class="fas fa-arrow-right"></i></a>
         </div>
         
-        <?php if(empty($suivis)): ?>
-            <p style="color:var(--text-muted); text-align:center; padding:20px;">Aucune prescription active pour le moment.</p>
+        <?php if(empty($dernieresConsultations)): ?>
+            <p style="color:var(--text-muted); text-align:center; padding:20px;">Aucune consultation enregistrée pour le moment.</p>
         <?php else: ?>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                <?php foreach(array_slice($suivis, 0, 2) as $s): ?>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <?php foreach($dernieresConsultations as $c): ?>
                 <div style="background:var(--bg-body); padding:20px; border-radius:20px; border:1px solid var(--border);">
-                    <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px;">Médecin : Dr. <?php echo htmlspecialchars($s['medecin_nom']); ?></div>
-                    <div style="font-size:0.95rem; font-weight:700; margin-bottom:8px;">Consigne : <?php echo htmlspecialchars(substr($s['etat_general'], 0, 60)); ?>...</div>
-                    <div style="font-size:0.85rem; color:var(--text-muted);"><i class="fas fa-flask"></i> Analyses : <?php echo htmlspecialchars($s['analyses_a_realiser'] ?: 'Aucune'); ?></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div style="font-size:0.7rem; font-weight:800; color:var(--primary); text-transform:uppercase;">Dr. <?php echo htmlspecialchars($c['medecin_nom'].' '.$c['medecin_prenom']); ?> &mdash; <?php echo htmlspecialchars($c['specialite']); ?></div>
+                        <div style="font-size:0.8rem; color:var(--text-muted);"><?php echo $c['date_rdv']; ?></div>
+                    </div>
+                    <div style="font-size:0.95rem; font-weight:700; margin-bottom:4px;"><?php echo htmlspecialchars(substr($c['diagnostic'], 0, 80)); ?>...</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);"><i class="fas fa-pills"></i> <?php echo htmlspecialchars(substr($c['traitement'], 0, 60)); ?>...</div>
                 </div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if($dernierSuivi): ?>
+    <div class="section-card">
+        <div class="section-header">
+            <h3 class="section-title"><i class="fas fa-heart-pulse"></i>Dernier Suivi Médical</h3>
+            <a href="?controller=patient&action=suivis" style="font-size:0.8rem; font-weight:700; color:var(--primary); text-decoration:none;">Voir tout <i class="fas fa-arrow-right"></i></a>
+        </div>
+        <div style="background:var(--bg-body); padding:24px; border-radius:20px; border:1px solid var(--border);">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;">
+                <div>
+                    <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Date</div>
+                    <div style="font-weight:700;"><?php echo $dernierSuivi['date_suivi']; ?></div>
+                </div>
+                <div>
+                    <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Poids</div>
+                    <div style="font-weight:700;"><?php echo $dernierSuivi['poids'] ? $dernierSuivi['poids'].' kg' : 'N/A'; ?></div>
+                </div>
+                <div>
+                    <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Tension</div>
+                    <div style="font-weight:700;"><?php echo htmlspecialchars($dernierSuivi['tension'] ?? 'N/A'); ?></div>
+                </div>
+            </div>
+            <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+                <div style="font-size:0.7rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Consigne du médecin</div>
+                <div style="font-size:0.9rem;"><?php echo htmlspecialchars($dernierSuivi['etat_general']); ?></div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </main>
 
 </body>

@@ -226,7 +226,7 @@
                 <label for="email">Adresse e-mail</label>
                 <div class="input-wrap">
                     <i class="fas fa-envelope"></i>
-                    <input type="email" id="email" name="email" class="form-control"
+                    <input type="text" id="email" name="email" class="form-control"
                            placeholder="votre@email.com"
                            value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"
                            autocomplete="email">

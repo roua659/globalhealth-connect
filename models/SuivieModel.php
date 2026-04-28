@@ -11,6 +11,7 @@ class SuivieModel {
     public $tension;
     public $etat_general;
     public $analyses_a_realiser;
+    public $resultat_analyses;
     public $regime_alimentaire;
     public $activite_physique;
     public $prochain_rdv;
@@ -119,6 +120,7 @@ class SuivieModel {
                       tension = :tension,
                       etat_general = :etat_general,
                       analyses_a_realiser = :analyses_a_realiser,
+                      resultat_analyses = :resultat_analyses,
                       regime_alimentaire = :regime_alimentaire,
                       activite_physique = :activite_physique,
                       prochain_rdv = :prochain_rdv,
@@ -134,6 +136,7 @@ class SuivieModel {
         $this->tension = htmlspecialchars(strip_tags($this->tension));
         $this->etat_general = htmlspecialchars(strip_tags($this->etat_general));
         $this->analyses_a_realiser = htmlspecialchars(strip_tags($this->analyses_a_realiser));
+        $this->resultat_analyses = htmlspecialchars(strip_tags($this->resultat_analyses));
         $this->regime_alimentaire = htmlspecialchars(strip_tags($this->regime_alimentaire));
         $this->activite_physique = htmlspecialchars(strip_tags($this->activite_physique));
         $this->prochain_rdv = htmlspecialchars(strip_tags($this->prochain_rdv));
@@ -147,6 +150,7 @@ class SuivieModel {
         $stmt->bindParam(':tension', $this->tension);
         $stmt->bindParam(':etat_general', $this->etat_general);
         $stmt->bindParam(':analyses_a_realiser', $this->analyses_a_realiser);
+        $stmt->bindParam(':resultat_analyses', $this->resultat_analyses);
         $stmt->bindParam(':regime_alimentaire', $this->regime_alimentaire);
         $stmt->bindParam(':activite_physique', $this->activite_physique);
         $stmt->bindParam(':prochain_rdv', $this->prochain_rdv);

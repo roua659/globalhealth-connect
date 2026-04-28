@@ -83,6 +83,19 @@
         .alert { padding:16px; border-radius:12px; margin-bottom:24px; font-weight:600; display:flex; align-items:center; gap:10px; }
         .alert-success { background:#f0fdf4; color:#16a34a; border: 1px solid #dcfce7; }
         .alert-error { background:#fef2f2; color:#ef4444; border: 1px solid #fee2e2; }
+
+        /* Style pour les messages d'erreur en rouge */
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 4px;
+            display: none; /* Caché par défaut */
+        }
+        .f-control.is-invalid {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2;
+        }
     </style>
 </head>
 <body>
@@ -116,40 +129,45 @@
     <div class="page-split">
         <div class="form-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Nouvelle Prescription</h3>
-            <form method="POST">
+            <!-- novalidate désactive les bulles par défaut du navigateur -->
+            <form method="POST" id="suivieForm" novalidate>
                 <input type="hidden" name="action" value="add">
                 
                 <div class="f-group">
-                    <label class="f-label">Patient</label>
-                    <select name="id_patient" class="f-control" required>
-                        <option value="">— Sélectionner —</option>
-                        <?php foreach ($patients as $p): ?>
-                            <option value="<?php echo $p['id_patient']; ?>"><?php echo htmlspecialchars($p['nom'].' '.$p['prenom']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="f-group">
-                    <label class="f-label">Date du Suivi</label>
-                    <input type="date" name="date_suivi" class="f-control" value="<?php echo date('Y-m-d'); ?>" required>
-                </div>
-
-                <div class="f-group">
-                    <label class="f-label">Consultation liée (Optionnel)</label>
-                    <select name="id_consultation" class="f-control">
-                        <option value="">— Aucune —</option>
+                    <label class="f-label">ID Consultation (Jointure) <span style="color:#ef4444;">*</span></label>
+                    <select name="id_consultation" class="f-control" id="id_consultation">
+                        <option value="">— Choisir l'ID de Consultation —</option>
                         <?php foreach ($consultations as $c): ?>
                             <option value="<?php echo $c['id_consultation']; ?>">
-                                <?php echo htmlspecialchars($c['patient_nom'] . ' ' . $c['patient_prenom']); ?> 
-                                (ID: #<?php echo $c['id_consultation']; ?>)
+                                Consultation N° <?php echo $c['id_consultation']; ?> (Patient: <?php echo htmlspecialchars($c['patient_nom']); ?>)
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="error-msg" id="err_id_consultation">Veuillez sélectionner une consultation.</div>
                 </div>
 
                 <div class="f-group">
-                    <label class="f-label">État Général & Objectifs</label>
-                    <textarea name="etat_general" class="f-control" rows="3" required></textarea>
+                    <label class="f-label">Date du Suivi <span style="color:#ef4444;">*</span></label>
+                    <input type="date" name="date_suivi" id="date_suivi" class="f-control" value="<?php echo date('Y-m-d'); ?>">
+                    <div class="error-msg" id="err_date_suivi">La date est obligatoire.</div>
+                </div>
+
+                <div class="f-group">
+                    <label class="f-label">Poids (kg)</label>
+                    <input type="number" name="poids" id="poids" class="f-control" step="0.1" placeholder="Ex: 75.5">
+                    <div class="error-msg" id="err_poids">Le poids doit être entre 1 et 500 kg.</div>
+                </div>
+
+                <div class="f-group">
+                    <label class="f-label">Tension Artérielle</label>
+                    <input type="text" name="tension" id="tension" class="f-control" placeholder="Ex: 120/80">
+                    <div class="error-msg" id="err_tension">Format invalide (ex: 120/80).</div>
+                </div>
+
+                <div class="f-group">
+                    <label class="f-label">État Général &amp; Objectifs <span style="color:#ef4444;">*</span></label>
+                    <textarea name="etat_general" id="etat_general" class="f-control" rows="3" placeholder="Observations cliniques..."></textarea>
+                    <div class="error-msg" id="err_etat_general">Veuillez saisir au moins 5 caractères.</div>
                 </div>
 
                 <div class="f-group">
@@ -210,6 +228,83 @@
         </div>
     </div>
 </main>
+
+<script>
+/**
+ * Contrôle de saisie personnalisé avec messages en rouge
+ */
+function validateSuivieForm(event) {
+    // 1. Récupération des éléments et des zones d'erreur
+    const fields = {
+        id_consultation: { input: document.getElementById('id_consultation'), err: document.getElementById('err_id_consultation') },
+        date_suivi:      { input: document.getElementById('date_suivi'),      err: document.getElementById('err_date_suivi') },
+        poids:           { input: document.getElementById('poids'),           err: document.getElementById('err_poids') },
+        tension:         { input: document.getElementById('tension'),         err: document.getElementById('err_tension') },
+        etat_general:    { input: document.getElementById('etat_general'),    err: document.getElementById('err_etat_general') }
+    };
+
+    let hasError = false;
+
+    // Réinitialisation des erreurs
+    for (let key in fields) {
+        fields[key].input.classList.remove('is-invalid');
+        fields[key].err.style.display = 'none';
+    }
+
+    // --- VALIDATIONS ---
+
+    // ID Consultation
+    if (fields.id_consultation.input.value === "") {
+        showError(fields.id_consultation, "Veuillez sélectionner une consultation.");
+        hasError = true;
+    }
+
+    // Date
+    if (fields.date_suivi.input.value === "") {
+        showError(fields.date_suivi, "La date est obligatoire.");
+        hasError = true;
+    }
+
+    // Poids
+    if (fields.poids.input.value !== "") {
+        const p = parseFloat(fields.poids.input.value);
+        if (isNaN(p) || p <= 0 || p > 500) {
+            showError(fields.poids, "Le poids doit être entre 1 et 500 kg.");
+            hasError = true;
+        }
+    }
+
+    // Tension
+    if (fields.tension.input.value !== "") {
+        if (!/^\d{2,3}\/\d{2,3}$/.test(fields.tension.input.value)) {
+            showError(fields.tension, "Format invalide (ex: 120/80).");
+            hasError = true;
+        }
+    }
+
+    // État général
+    if (fields.etat_general.input.value.trim().length < 5) {
+        showError(fields.etat_general, "Veuillez saisir au moins 5 caractères.");
+        hasError = true;
+    }
+
+    if (hasError) {
+        event.preventDefault();
+        return false;
+    }
+    return true;
+}
+
+// Fonction utilitaire pour afficher une erreur
+function showError(fieldObj, message) {
+    fieldObj.input.classList.add('is-invalid');
+    fieldObj.err.textContent = message;
+    fieldObj.err.style.display = 'block';
+}
+
+// Liaison au formulaire
+document.getElementById('suivieForm').onsubmit = validateSuivieForm;
+</script>
 
 </body>
 </html>

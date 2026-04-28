@@ -296,14 +296,14 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label>Date du suivi *</label>
-                            <input type="date" class="form-control form-control-custom" id="dateSuivi">
+                            <input type="text" class="form-control form-control-custom" id="dateSuivi" placeholder="AAAA-MM-JJ">
                             <div class="invalid-feedback" id="dateSuiviError"></div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label>Poids (kg)</label>
-                            <input type="number" step="0.1" class="form-control form-control-custom" id="poids" placeholder="Ex: 72.5">
+                            <input type="text" class="form-control form-control-custom" id="poids" placeholder="Ex: 72.5">
                             <div class="invalid-feedback" id="poidsError"></div>
                         </div>
                         <div class="col-md-4 mb-3">
@@ -313,7 +313,7 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label>Prochain rendez-vous</label>
-                            <input type="date" class="form-control form-control-custom" id="prochainRdv">
+                            <input type="text" class="form-control form-control-custom" id="prochainRdv" placeholder="AAAA-MM-JJ">
                         </div>
                     </div>
                     <div class="mb-3">
