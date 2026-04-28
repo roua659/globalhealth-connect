@@ -10,27 +10,49 @@ class User
         $this->db = Database::getConnection();
     }
 
+    private function getRoleId(string $roleName): int
+    {
+        $stmt = $this->db->prepare("SELECT id_role FROM role WHERE type_role = :type_role LIMIT 1");
+        $stmt->execute(['type_role' => $roleName]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            throw new \RuntimeException("Rôle inconnu: {$roleName}");
+        }
+        return (int) $row['id_role'];
+    }
+
     public function getAll(): array
     {
-        $sql = "SELECT id_user, nom, prenom, age, sexe, poids, taille, email, cas_social, date_naissance, adresse, specialite, role
-                FROM utilisateur
-                ORDER BY id_user DESC";
+        $sql = "SELECT u.id_user, u.nom, u.prenom, u.age, u.sexe, u.poids, u.taille,
+                       u.email, u.cas_social, u.date_naissance, u.adresse, u.specialite,
+                       r.type_role AS role
+                FROM utilisateur u
+                LEFT JOIN role r ON r.id_role = u.id_role
+                ORDER BY u.id_user DESC";
         return $this->db->query($sql)->fetchAll();
     }
 
     public function getDoctors(): array
     {
-        $stmt = $this->db->prepare("SELECT id_user, nom, prenom, email, specialite
-                                    FROM utilisateur
-                                    WHERE role = 'medecin'
-                                    ORDER BY nom, prenom");
+        $stmt = $this->db->prepare(
+            "SELECT u.id_user, u.nom, u.prenom, u.email, u.specialite, r.type_role AS role
+             FROM utilisateur u
+             LEFT JOIN role r ON r.id_role = u.id_role
+             WHERE r.type_role = 'medecin'
+             ORDER BY u.nom, u.prenom"
+        );
         $stmt->execute();
         return $stmt->fetchAll();
     }
 
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM utilisateur WHERE TRIM(LOWER(email)) = TRIM(LOWER(:email)) LIMIT 1");
+        $stmt = $this->db->prepare(
+            "SELECT u.*, r.type_role AS role
+             FROM utilisateur u
+             LEFT JOIN role r ON r.id_role = u.id_role
+             WHERE TRIM(LOWER(u.email)) = TRIM(LOWER(:email)) LIMIT 1"
+        );
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch();
         return $user ?: null;
@@ -38,7 +60,12 @@ class User
 
     public function findById(int $idUser): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM utilisateur WHERE id_user = :id_user LIMIT 1");
+        $stmt = $this->db->prepare(
+            "SELECT u.*, r.type_role AS role
+             FROM utilisateur u
+             LEFT JOIN role r ON r.id_role = u.id_role
+             WHERE u.id_user = :id_user LIMIT 1"
+        );
         $stmt->execute(['id_user' => $idUser]);
         $user = $stmt->fetch();
         return $user ?: null;
@@ -46,26 +73,28 @@ class User
 
     public function create(array $data): int
     {
+        $idRole = $this->getRoleId((string) ($data['role'] ?? 'patient'));
+
         $sql = "INSERT INTO utilisateur
-            (nom, prenom, age, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, role)
+            (nom, prenom, age, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, id_role)
             VALUES
-            (:nom, :prenom, :age, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :role)";
+            (:nom, :prenom, :age, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :id_role)";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
-            'nom' => $data['nom'],
-            'prenom' => $data['prenom'],
-            'age' => $data['age'],
-            'sexe' => $data['sexe'],
-            'poids' => $data['poids'],
-            'taille' => $data['taille'],
-            'email' => $data['email'],
-            'mot_de_passe' => $data['mot_de_passe'],
-            'cas_social' => $data['cas_social'] ?? null,
-            'date_naissance' => $data['date_naissance'],
-            'adresse' => $data['adresse'],
-            'specialite' => $data['specialite'] ?? null,
-            'role' => $data['role'],
+            'nom'           => $data['nom'],
+            'prenom'        => $data['prenom'],
+            'age'           => $data['age'],
+            'sexe'          => $data['sexe'],
+            'poids'         => $data['poids'],
+            'taille'        => $data['taille'],
+            'email'         => $data['email'],
+            'mot_de_passe'  => $data['mot_de_passe'],
+            'cas_social'    => $data['cas_social'] ?? null,
+            'date_naissance'=> $data['date_naissance'],
+            'adresse'       => $data['adresse'],
+            'specialite'    => $data['specialite'] ?? null,
+            'id_role'       => $idRole,
         ]);
 
         return (int) $this->db->lastInsertId();

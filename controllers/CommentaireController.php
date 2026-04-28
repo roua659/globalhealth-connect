@@ -190,8 +190,7 @@ class CommentaireController extends BaseController {
             $commentaire->setIdPublication($data['id_publication']);
             $commentaire->setIdUser($data['id_user']);
             $commentaire->setDatePublication(date('Y-m-d H:i:s'));
-            $commentaire->setStatut($data['statut'] ?? 'pending');
-            $commentaire->setNote(0);
+            $commentaire->setStatut($data['statut'] ?? 'en_attente');
             $commentaire->setSignalements(0);
 
             $result = $commentaire->create();

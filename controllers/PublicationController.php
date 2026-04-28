@@ -95,26 +95,54 @@ class PublicationController extends BaseController {
                 session_start();
             }
 
-            $data = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $data = !empty($_POST) ? $_POST : (json_decode(file_get_contents('php://input'), true) ?? []);
+
+            // Gestion upload image
+            $url_image = null;
+            if (!empty($_FILES['image']['tmp_name'])) {
+                $uploadDir = __DIR__ . '/../uploads/publications/';
+                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                if (!in_array($ext, $allowed)) {
+                    return $this->jsonResponse(['success' => false, 'error' => 'Format image non supporté'], 400);
+                }
+                $filename = uniqid('pub_', true) . '.' . $ext;
+                if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $filename)) {
+                    $url_image = '/globalhealth-connect1/uploads/publications/' . $filename;
+                }
+            }
 
             // Validation
             if (empty($data['contenu']) || strlen(trim($data['contenu'])) < 10) {
                 return $this->jsonResponse(['success' => false, 'error' => 'Content must be at least 10 characters'], 400);
             }
 
-            // Use provided id_medecin or fall back to session user ID
-            $userId = $data['id_medecin'] ?? $_SESSION['user_id'] ?? null;
-            
-            if (empty($userId)) {
+            $idUser = $data['id_medecin'] ?? $_SESSION['user_id'] ?? null;
+
+            if (empty($idUser)) {
                 return $this->jsonResponse(['success' => false, 'error' => 'User must be logged in'], 401);
             }
 
+            // Résoudre id_medecin depuis la table medecin via id_user
+            $pdo = config::getConnexion();
+            $stmt = $pdo->prepare("SELECT id_medecin FROM medecin WHERE id_user = :id_user LIMIT 1");
+            $stmt->execute(['id_user' => $idUser]);
+            $medecinRow = $stmt->fetch();
+
+            if (!$medecinRow) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Aucun profil médecin trouvé pour cet utilisateur'], 403);
+            }
+
+            $idMedecin = $medecinRow['id_medecin'];
+
             $publication = new Publication();
-            $publication->setIdMedecin($userId);
+            $publication->setIdMedecin($idMedecin);
             $publication->setContenu($data['contenu']);
             $publication->setDatePublication(date('Y-m-d H:i:s'));
             
-            if (!empty($data['url_image'])) {
+            if ($url_image) {
+                $publication->setUrlImage($url_image);
+            } elseif (!empty($data['url_image'])) {
                 $publication->setUrlImage($data['url_image']);
             }
             if (!empty($data['url_video'])) {

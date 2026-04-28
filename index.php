@@ -75,7 +75,7 @@ foreach ($routes as $route => $config) {
 // Route par défaut - rediriger vers index.html
 if (!$routeFound) {
     if (file_exists(__DIR__ . '/views/frontoffice/layout/index.php')) {
-        readfile(__DIR__ . '/views/frontoffice/layout/index.php');
+        require __DIR__ . '/views/frontoffice/layout/index.php';
     } else {
         http_response_code(404);
         echo "Page non trouvée";
