@@ -320,11 +320,14 @@ class UserController
             $passwordMatch = false;
 
             if ($storedPassword !== '') {
-                $passwordMatch = hash_equals($storedPassword, $enteredPassword);
-                if (!$passwordMatch) {
-                    $passwordInfo = password_get_info($storedPassword);
-                    if ($passwordInfo['algo'] !== 0 && password_verify($enteredPassword, $storedPassword)) {
+                // Vérification bcrypt (nouveau format)
+                if (password_verify($enteredPassword, $storedPassword)) {
+                    $passwordMatch = true;
+                } else {
+                    // Compatibilité : ancien mot de passe en clair → on migre vers bcrypt
+                    if (hash_equals($storedPassword, $enteredPassword)) {
                         $passwordMatch = true;
+                        // Migration silencieuse vers bcrypt
                         $this->userModel->update((int) $user['id_user'], ['mot_de_passe' => $enteredPassword]);
                     }
                 }
@@ -334,6 +337,9 @@ class UserController
                 $this->jsonResponse(['success' => false, 'message' => 'Mot de passe incorrect'], 401);
                 return;
             }
+
+            // Envoi email de notification de connexion
+            $this->sendLoginNotificationEmail($user);
 
             $this->jsonResponse(['success' => true, 'data' => $this->normalizeUser($user)]);
         } catch (Throwable $e) {
@@ -390,7 +396,7 @@ class UserController
             }
 
             $updated = $this->userModel->update((int) $user['id_user'], [
-                'mot_de_passe' => $newPassword
+                'mot_de_passe' => $newPassword   // hashé dans update()
             ]);
 
             if (!$updated) {
@@ -402,6 +408,42 @@ class UserController
         } catch (Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    // =========================================================
+    // EMAIL DE NOTIFICATION DE CONNEXION
+    // =========================================================
+
+    private function sendLoginNotificationEmail(array $user): void
+    {
+        $email    = $user['email'] ?? '';
+        $fullName = trim(($user['nom'] ?? '') . ' ' . ($user['prenom'] ?? ''));
+        $role     = $user['role'] ?? 'utilisateur';
+        $dateTime = (new \DateTime())->format('d/m/Y à H:i:s');
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        $subject = '🔐 Connexion à GlobalHealth Connect';
+        $body    = "Bonjour {$fullName},\n\n"
+            . "Nous vous informons qu'une connexion a été effectuée sur votre compte GlobalHealth Connect.\n\n"
+            . "📅 Date et heure : {$dateTime}\n"
+            . "👤 Rôle          : {$role}\n"
+            . "📧 Email         : {$email}\n\n"
+            . "Si vous n'êtes pas à l'origine de cette connexion, veuillez contacter notre support immédiatement.\n\n"
+            . "Félicitations et bienvenue sur GlobalHealth Connect ! 🎉\n\n"
+            . "Cordialement,\nL'équipe GlobalHealth Connect";
+
+        $headers = implode("\r\n", [
+            'From: GlobalHealth Connect <no-reply@globalhealth.local>',
+            'Reply-To: no-reply@globalhealth.local',
+            'Content-Type: text/plain; charset=UTF-8',
+            'X-Mailer: PHP/' . PHP_VERSION,
+        ]);
+
+        // mail() — fonctionne si un serveur SMTP local est configuré (ex: XAMPP + sendmail / Mailtrap)
+        @mail($email, $subject, $body, $headers);
     }
 
     // =========================================================

@@ -51,6 +51,9 @@ class User
             VALUES
             (:nom, :prenom, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :role)";
 
+        // Hachage du mot de passe avec bcrypt
+        $hashedPassword = password_hash((string) $data['mot_de_passe'], PASSWORD_BCRYPT);
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             'nom' => $data['nom'],
@@ -59,7 +62,7 @@ class User
             'poids' => $data['poids'],
             'taille' => $data['taille'],
             'email' => $data['email'],
-            'mot_de_passe' => $data['mot_de_passe'],
+            'mot_de_passe' => $hashedPassword,
             'cas_social' => $data['cas_social'] ?? null,
             'date_naissance' => $data['date_naissance'],
             'adresse' => $data['adresse'],
@@ -86,7 +89,7 @@ class User
         }
         if (array_key_exists('mot_de_passe', $data) && $data['mot_de_passe'] !== null && $data['mot_de_passe'] !== '') {
             $sets[] = 'mot_de_passe = :mot_de_passe';
-            $params['mot_de_passe'] = $data['mot_de_passe'];
+            $params['mot_de_passe'] = password_hash((string) $data['mot_de_passe'], PASSWORD_BCRYPT);
         }
         if ($sets === []) {
             return false;

@@ -524,6 +524,12 @@ $usersApiBase = gh_users_api_base();
                 <button class="btn btn-outline-medical me-2" onclick="showSignInModal()">Se connecter</button>
                 <button class="btn btn-medical" onclick="showSignUpModal()">S'inscrire</button>
             </div>
+            <!-- Bouton traduction arabe -->
+            <button id="btnTranslate" class="btn btn-sm ms-2"
+                    onclick="toggleArabic()"
+                    style="background:#1a5276;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <span style="font-size:1rem;">🌐</span> <span id="btnTranslateLabel">عربي</span>
+            </button>
         </div>
     </div>
 </nav>
@@ -979,8 +985,8 @@ $usersApiBase = gh_users_api_base();
                         </div>
                     </div>
 
-                    <!-- Poids / Taille -->
-                    <div class="row gx-3">
+                    <!-- Poids / Taille (patients uniquement) -->
+                    <div id="signupPoidsSection" class="row gx-3">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-600" for="signupPoids">Poids (kg) <span style="color:#e74c3c;">*</span></label>
                             <input type="number" step="0.1" min="1" class="form-control form-control-medical"
@@ -993,6 +999,13 @@ $usersApiBase = gh_users_api_base();
                                    id="signupTaille" placeholder="Ex : 1.75">
                             <div class="field-error" id="err-signupTaille"></div>
                         </div>
+                    </div>
+
+                    <!-- Cas social (patients uniquement) -->
+                    <div id="signupCasSocialSection" class="mb-3">
+                        <label class="form-label fw-600" for="signupCasSocial">Cas social</label>
+                        <input type="text" class="form-control form-control-medical" id="signupCasSocial"
+                               placeholder="Ex : CNSS, RAMED…">
                     </div>
 
                     <!-- Adresse -->
@@ -1080,12 +1093,12 @@ $usersApiBase = gh_users_api_base();
                         </div>
                     </div>
                     <div class="row gx-3">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3" id="profilePoidsRow">
                             <label>Poids (kg)</label>
                             <input type="text" class="form-control form-control-medical" id="profilePoids" readonly>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Taille (cm)</label>
+                        <div class="col-md-6 mb-3" id="profileTailleRow">
+                            <label>Taille (m)</label>
                             <input type="text" class="form-control form-control-medical" id="profileTaille" readonly>
                         </div>
                     </div>
@@ -1157,6 +1170,15 @@ $usersApiBase = gh_users_api_base();
         const isMedecin = document.getElementById('signupRole').value === 'medecin';
         document.getElementById('signupSpecialtyField').style.display = isMedecin ? 'block' : 'none';
         if (!isMedecin) fClear('signupSpecialite');
+        // Cacher poids / taille / cas social pour les médecins
+        const poidsSection     = document.getElementById('signupPoidsSection');
+        const casSocialSection = document.getElementById('signupCasSocialSection');
+        if (poidsSection)     poidsSection.style.display     = isMedecin ? 'none' : 'flex';
+        if (casSocialSection) casSocialSection.style.display = isMedecin ? 'none' : 'block';
+        if (isMedecin) {
+            fClear('signupPoids');
+            fClear('signupTaille');
+        }
     }
 
     function validateSignupUser(user) {
@@ -1317,6 +1339,7 @@ $usersApiBase = gh_users_api_base();
             updateUIForConnectedPatient();
             loadMedicalRecords();
             loadFollowups();
+            applyRoleUI(patient.role || 'patient');
             showNotification(`Bon retour ${patient.name} !`);
         } catch (error) {
             fErr('signinPassword', error.message);
@@ -1375,19 +1398,20 @@ $usersApiBase = gh_users_api_base();
         if (!dateNaissance) {
             fErr('signupDateNaissance', 'La date de naissance est obligatoire.'); valid = false;
         }
-        // Poids
-        if (!poidsRaw) {
-            fErr('signupPoids', 'Le poids est obligatoire.'); valid = false;
-        } else if (Number(poidsRaw) <= 0) {
-            fErr('signupPoids', 'Poids invalide (doit être > 0).'); valid = false;
-        }
-        // Taille
-        if (!tailleRaw) {
-            fErr('signupTaille', 'La taille est obligatoire.'); valid = false;
-        } else {
-            const t = Number(tailleRaw);
-            if (isNaN(t) || t <= 0 || t > 2.5) {
-                fErr('signupTaille', 'Taille invalide (ex : 1.75 pour 175 cm).'); valid = false;
+        // Poids / Taille (patients uniquement)
+        if (role !== 'medecin') {
+            if (!poidsRaw) {
+                fErr('signupPoids', 'Le poids est obligatoire.'); valid = false;
+            } else if (Number(poidsRaw) <= 0) {
+                fErr('signupPoids', 'Poids invalide (doit être > 0).'); valid = false;
+            }
+            if (!tailleRaw) {
+                fErr('signupTaille', 'La taille est obligatoire.'); valid = false;
+            } else {
+                const t = Number(tailleRaw);
+                if (isNaN(t) || t <= 0 || t > 2.5) {
+                    fErr('signupTaille', 'Taille invalide (ex : 1.75 pour 175 cm).'); valid = false;
+                }
             }
         }
         // Adresse
@@ -1416,12 +1440,13 @@ $usersApiBase = gh_users_api_base();
         const userData = {
             nom, prenom,
             sexe,
-            poids: Number(poidsRaw),
-            taille: Number(tailleRaw),
+            poids: role !== 'medecin' ? Number(poidsRaw) : 0,
+            taille: role !== 'medecin' ? Number(tailleRaw) : 0,
             email,
             mot_de_passe: password,
             date_naissance: dateNaissance,
             adresse, role, specialite,
+            cas_social: role !== 'medecin' ? (document.getElementById('signupCasSocial')?.value.trim() || null) : null,
             name: `${nom} ${prenom}`.trim()
         };
 
@@ -2294,6 +2319,135 @@ $usersApiBase = gh_users_api_base();
         }
     }
     
+    // ============================================
+    // TRADUCTION ARABE
+    // ============================================
+    let isArabic = false;
+
+    const TRANSLATIONS = {
+        // Navbar
+        'Accueil': 'الرئيسية',
+        'Consultation': 'الاستشارة',
+        'Téléconsultation': 'الاستشارة عن بُعد',
+        'Suivi': 'المتابعة',
+        'Médecins': 'الأطباء',
+        'Forum': 'المنتدى',
+        'Dossier': 'الملف الطبي',
+        'Se connecter': 'تسجيل الدخول',
+        "S'inscrire": 'إنشاء حساب',
+        // Hero
+        'Prenez soin de votre santé autrement': 'اعتنِ بصحتك بطريقة مختلفة',
+        'Consultez des médecins qualifiés en ligne ou en présentiel. Partagez vos expériences et notez vos consultations.': 'استشر أطباء مؤهلين عبر الإنترنت أو حضورياً. شارك تجاربك وقيّم استشاراتك.',
+        'Prendre rendez-vous': 'حجز موعد',
+        'Soins 100% sécurisés': 'رعاية صحية آمنة 100%',
+        'Téléconsultation 24/7': 'استشارة طبية 24/7',
+        'Consultation en visio avec nos experts': 'استشارة بالفيديو مع خبرائنا',
+        // Sections
+        'Prendre rendez-vous': 'حجز موعد',
+        'Nos médecins experts': 'أطباؤنا الخبراء',
+        'Mon Dossier Médical': 'ملفي الطبي',
+        'Forum Médical': 'المنتدى الطبي',
+        'Suivi de consultation': 'متابعة الاستشارة',
+        'Gérez l\'ensemble de vos informations médicales en toute sécurité': 'أدر جميع معلوماتك الطبية بأمان تام',
+        // Modals connexion
+        'Connexion': 'تسجيل الدخول',
+        'Email': 'البريد الإلكتروني',
+        'Mot de passe': 'كلمة المرور',
+        'Mot de passe oublié ?': 'نسيت كلمة المرور؟',
+        'Pas encore de compte ?': 'ليس لديك حساب؟',
+        // Modal inscription
+        'Inscription': 'إنشاء حساب',
+        'Nom': 'الاسم',
+        'Prénom': 'اللقب',
+        'Rôle': 'الدور',
+        'Patient': 'مريض',
+        'Médecin': 'طبيب',
+        'Spécialité': 'التخصص',
+        'Sexe': 'الجنس',
+        'Sélectionner': 'اختر',
+        'Homme': 'ذكر',
+        'Femme': 'أنثى',
+        'Date de naissance': 'تاريخ الميلاد',
+        'Poids (kg)': 'الوزن (كغ)',
+        'Taille (m)': 'الطول (م)',
+        'Adresse': 'العنوان',
+        'Confirmer le mot de passe': 'تأكيد كلمة المرور',
+        'Déjà inscrit ?': 'لديك حساب بالفعل؟',
+        // Boutons
+        'Actualiser': 'تحديث',
+        'Enregistrer': 'حفظ',
+        'Annuler': 'إلغاء',
+        'Fermer': 'إغلاق',
+        'Ajouter': 'إضافة',
+        'Modifier': 'تعديل',
+        'Supprimer': 'حذف',
+        // Profil
+        'Mon profil': 'ملفي الشخصي',
+        'Mes RDV': 'مواعيدي',
+        'Mon dossier médical': 'ملفي الطبي',
+        'Déconnexion': 'تسجيل الخروج',
+        // Chatbot
+        'Bonjour ! Je suis votre assistant santé. Posez-moi vos questions.': 'مرحباً! أنا مساعدك الصحي. اطرح عليّ أسئلتك.',
+        'Écrivez votre message...': 'اكتب رسالتك...',
+        // Notifications
+        'Aucun médecin disponible pour le moment.': 'لا يوجد أطباء متاحون حالياً.',
+        'Les médecins seront ajoutés prochainement.': 'سيتم إضافة الأطباء قريباً.',
+    };
+
+    function translateNode(node, toArabic) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const txt = node.textContent.trim();
+            if (!txt) return;
+            if (toArabic) {
+                if (TRANSLATIONS[txt]) {
+                    node._originalText = node._originalText || txt;
+                    node.textContent = TRANSLATIONS[txt];
+                }
+            } else {
+                if (node._originalText) {
+                    node.textContent = node._originalText;
+                    delete node._originalText;
+                }
+            }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Ne pas traduire les scripts, styles, inputs
+            const tag = node.tagName?.toLowerCase();
+            if (['script','style','input','textarea','select'].includes(tag)) return;
+            node.childNodes.forEach(child => translateNode(child, toArabic));
+            // Traduire les placeholders
+            if (node.placeholder && toArabic) {
+                node._origPlaceholder = node._origPlaceholder || node.placeholder;
+                node.placeholder = TRANSLATIONS[node.placeholder] || node.placeholder;
+            } else if (!toArabic && node._origPlaceholder) {
+                node.placeholder = node._origPlaceholder;
+                delete node._origPlaceholder;
+            }
+        }
+    }
+
+    function toggleArabic() {
+        isArabic = !isArabic;
+        document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
+        document.documentElement.lang = isArabic ? 'ar' : 'fr';
+        document.body.style.fontFamily = isArabic
+            ? "'Noto Sans Arabic', 'Segoe UI', sans-serif"
+            : "'Inter', sans-serif";
+        translateNode(document.body, isArabic);
+        const lbl = document.getElementById('btnTranslateLabel');
+        if (lbl) lbl.textContent = isArabic ? 'Français' : 'عربي';
+    }
+
+    // ============================================
+    // GESTION CHAMPS MÉDECIN APRÈS CONNEXION
+    // ============================================
+    function applyRoleUI(role) {
+        // Masquer poids/taille dans le profil si médecin
+        const poidsRow  = document.getElementById('profilePoidsRow');
+        const tailleRow = document.getElementById('profileTailleRow');
+        if (poidsRow)  poidsRow.style.display  = role === 'medecin' ? 'none' : '';
+        if (tailleRow) tailleRow.style.display = role === 'medecin' ? 'none' : '';
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
         const savedPatient = localStorage.getItem('globalhealth_currentPatient');
         if(savedPatient){ 
@@ -2302,6 +2456,7 @@ $usersApiBase = gh_users_api_base();
                 updateUIForConnectedPatient();
                 loadMedicalRecords();
                 loadFollowups();
+                if (currentPatient?.role) applyRoleUI(currentPatient.role);
             }catch(e){} 
         }
         await loadPatients();

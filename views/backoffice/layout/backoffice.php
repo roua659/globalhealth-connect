@@ -456,11 +456,11 @@ $usersApiBase = gh_users_api_base();
 <div class="col-md-6"><label>Prénom</label><input type="text" class="form-control form-control-custom" id="newUserPrenom" autocomplete="given-name" inputmode="text" pattern="^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$" title="Lettres seulement" oninput="this.value = this.value.replace(/[0-9]/g, '')"></div>
 <div class="col-md-6"><label>Sexe</label><select class="form-select form-control-custom" id="newUserSexe"><option value="">Sélectionner</option><option value="Homme">Homme</option><option value="Femme">Femme</option></select></div>
 <div class="col-md-6"><label>Date naissance</label><input type="date" class="form-control form-control-custom" id="newUserDateNaissance"></div>
-<div class="col-md-6"><label>Poids (kg)</label><input type="number" class="form-control form-control-custom" id="newUserPoids" min="0" step="0.1"></div>
-<div class="col-md-6"><label>Taille (m)</label><input type="number" class="form-control form-control-custom" id="newUserTaille" min="0" step="0.01"></div>
+<div class="col-md-6 newUser-patient-field"><label>Poids (kg)</label><input type="number" class="form-control form-control-custom" id="newUserPoids" min="0" step="0.1"></div>
+<div class="col-md-6 newUser-patient-field"><label>Taille (m)</label><input type="number" class="form-control form-control-custom" id="newUserTaille" min="0" step="0.01"></div>
 <div class="col-md-6"><label>Email</label><input type="email" class="form-control form-control-custom" id="newUserEmail"></div>
 <div class="col-md-6"><label>Mot de passe</label><input type="password" class="form-control form-control-custom" id="newUserMotDePasse" minlength="6"></div>
-<div class="col-md-6"><label>Cas social</label><input type="text" class="form-control form-control-custom" id="newUserCasSocial" placeholder="Ex: assuré CNSS"></div>
+<div class="col-md-6 newUser-patient-field"><label>Cas social</label><input type="text" class="form-control form-control-custom" id="newUserCasSocial" placeholder="Ex: assuré CNSS"></div>
 <div class="col-md-6"><label>Rôle</label><select class="form-select form-control-custom" id="newUserRole" onchange="toggleSpecialtyField()"><option value="patient">Patient</option><option value="medecin">Médecin</option><option value="admin">Admin</option></select></div>
 <div class="col-12"><label>Adresse</label><textarea class="form-control form-control-custom" id="newUserAdresse" rows="2"></textarea></div>
 <div class="col-12" id="specialtyField" style="display:none"><label>Spécialité</label><input type="text" class="form-control form-control-custom" id="newUserSpecialite" placeholder="Ex: Cardiologue"></div>
@@ -1643,8 +1643,17 @@ $usersApiBase = gh_users_api_base();
     
     function toggleSpecialtyField() {
         const role = document.getElementById('newUserRole').value;
-        document.getElementById('specialtyField').style.display = role === 'medecin' ? 'block' : 'none';
-        if (role !== 'medecin') {
+        const isMedecin = role === 'medecin';
+        document.getElementById('specialtyField').style.display = isMedecin ? 'block' : 'none';
+        // Cacher poids / taille / cas social pour les médecins
+        document.querySelectorAll('.newUser-patient-field').forEach(el => {
+            el.style.display = isMedecin ? 'none' : '';
+        });
+        if (isMedecin) {
+            clearFieldError(document.getElementById('newUserPoids'));
+            clearFieldError(document.getElementById('newUserTaille'));
+            clearFieldError(document.getElementById('newUserCasSocial'));
+        } else {
             clearFieldError(document.getElementById('newUserSpecialite'));
         }
     }
@@ -1740,26 +1749,19 @@ $usersApiBase = gh_users_api_base();
         if (!sexe) { setFieldError(sexeField, 'Le sexe est obligatoire.'); isValid = false; }
         if (!dateNaissance) { setFieldError(dateNaissanceField, 'La date de naissance est obligatoire.'); isValid = false; }
 
-        if (!poidsRaw) {
-            setFieldError(poidsField, 'Le poids est obligatoire.');
-            isValid = false;
-        } else {
-            const poids = Number(poidsRaw);
-            if (Number.isNaN(poids) || poids <= 0) {
-                setFieldError(poidsField, 'Poids invalide.');
-                isValid = false;
+        // Poids / Taille / Cas social : obligatoires seulement pour les patients
+        if (role !== 'medecin') {
+            if (!poidsRaw) {
+                setFieldError(poidsField, 'Le poids est obligatoire.'); isValid = false;
+            } else if (Number.isNaN(Number(poidsRaw)) || Number(poidsRaw) <= 0) {
+                setFieldError(poidsField, 'Poids invalide.'); isValid = false;
             }
-        }
-
-        if (!tailleRaw) {
-            setFieldError(tailleField, 'La taille est obligatoire.');
-            isValid = false;
-        } else {
-            const taille = Number(tailleRaw);
-            if (Number.isNaN(taille) || taille <= 0) {
-                setFieldError(tailleField, 'Taille invalide.');
-                isValid = false;
+            if (!tailleRaw) {
+                setFieldError(tailleField, 'La taille est obligatoire.'); isValid = false;
+            } else if (Number.isNaN(Number(tailleRaw)) || Number(tailleRaw) <= 0) {
+                setFieldError(tailleField, 'Taille invalide.'); isValid = false;
             }
+            if (!casSocial) { setFieldError(casSocialField, 'Le cas social est obligatoire.'); isValid = false; }
         }
 
         if (!email) {
@@ -1778,7 +1780,6 @@ $usersApiBase = gh_users_api_base();
             isValid = false;
         }
 
-        if (!casSocial) { setFieldError(casSocialField, 'Le cas social est obligatoire.'); isValid = false; }
         if (!role || !['admin', 'medecin', 'patient'].includes(role)) {
             setFieldError(roleField, 'Le rôle est obligatoire.');
             isValid = false;
@@ -1796,11 +1797,11 @@ $usersApiBase = gh_users_api_base();
             nom,
             prenom,
             sexe,
-            poids: Number(poidsRaw),
-            taille: Number(tailleRaw),
+            poids: role !== 'medecin' ? Number(poidsRaw) : 0,
+            taille: role !== 'medecin' ? Number(tailleRaw) : 0,
             email,
             mot_de_passe: motDePasse,
-            cas_social: casSocial,
+            cas_social: role !== 'medecin' ? casSocial : null,
             date_naissance: dateNaissance,
             adresse,
             role,
@@ -1811,11 +1812,11 @@ $usersApiBase = gh_users_api_base();
     }
 
     function validateUserPayload(user) {
-        const requiredFields = ['nom', 'prenom', 'sexe', 'poids', 'taille', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
+        const requiredFields = ['nom', 'prenom', 'sexe', 'email', 'mot_de_passe', 'date_naissance', 'adresse', 'role'];
         const missing = requiredFields.find((field) => !user[field] && user[field] !== 0);
         if (missing) return `Champ obligatoire manquant: ${missing}`;
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) return 'Email invalide';
-        if (Number(user.poids) <= 0 || Number(user.taille) <= 0) return 'Poids/Taille invalides';
+        if (user.role !== 'medecin' && (Number(user.poids) <= 0 || Number(user.taille) <= 0)) return 'Poids/Taille invalides';
         if (!['admin', 'medecin', 'patient'].includes(user.role)) return 'Rôle invalide';
         if (user.role === 'medecin' && !user.specialite) return 'La spécialité est obligatoire pour un médecin';
         if (user.mot_de_passe.length < 6) return 'Mot de passe trop court (min 6)';
