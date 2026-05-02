@@ -78,25 +78,25 @@
         .s-block-label { font-size:0.65rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
         .s-block-text { font-size:0.9rem; line-height:1.5; }
 
-        .btn-delete { background:transparent; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; font-weight:700; margin-top:20px; display:flex; align-items:center; gap:8px; }
+        .btn-delete { background:transparent; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; font-weight:700; display:flex; align-items:center; gap:8px; }
+        .btn-pdf { background:#10b981; color:#fff; border:none; padding:8px 16px; border-radius:10px; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; transition: all 0.2s; }
+        .btn-pdf:hover { background:#059669; transform:scale(1.05); }
+
+        .actions-row { display:flex; gap:16px; align-items:center; margin-top:20px; padding-top:20px; border-top:1px dashed var(--border); }
+
+        .search-container { position:relative; margin-bottom:24px; }
+        .search-container i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .search-input { width:100%; padding:12px 16px 12px 44px; border-radius:14px; border:1.5px solid var(--border); font-family:inherit; outline:none; transition:all 0.2s; }
+        .search-input:focus { border-color:var(--primary); box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1); }
 
         .alert { padding:16px; border-radius:12px; margin-bottom:24px; font-weight:600; display:flex; align-items:center; gap:10px; }
         .alert-success { background:#f0fdf4; color:#16a34a; border: 1px solid #dcfce7; }
         .alert-error { background:#fef2f2; color:#ef4444; border: 1px solid #fee2e2; }
 
-        /* Style pour les messages d'erreur en rouge */
-        .error-msg {
-            color: #ef4444;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-top: 4px;
-            display: none; /* Caché par défaut */
-        }
-        .f-control.is-invalid {
-            border-color: #ef4444 !important;
-            background-color: #fef2f2;
-        }
+        .error-msg { color: #ef4444; font-size: 0.75rem; font-weight: 600; margin-top: 4px; display: none; }
+        .f-control.is-invalid { border-color: #ef4444 !important; background-color: #fef2f2; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -186,55 +186,157 @@
 
         <div class="list-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Dossiers de Suivi Actifs</h3>
-            <?php foreach ($suivis as $s): ?>
-            <div class="s-item">
-                <div class="s-header">
-                    <div>
-                        <div class="s-patient"><?php echo htmlspecialchars($s['patient_nom'] . ' ' . $s['patient_prenom']); ?></div>
-                        <div class="s-date"><i class="fas fa-calendar-alt"></i> Prescrit le <?php echo $s['date_suivi']; ?></div>
-                    </div>
-                </div>
-
-                <div class="row-metrics">
-                    <div class="metric-box"><i class="fas fa-weight-scale"></i><div><div class="m-lbl">Poids</div><div class="m-val"><?php echo $s['poids'] ? $s['poids'].' kg' : '-'; ?></div></div></div>
-                    <div class="metric-box"><i class="fas fa-droplet"></i><div><div class="m-lbl">Tension</div><div class="m-val"><?php echo htmlspecialchars($s['tension'] ?? '-'); ?></div></div></div>
-                </div>
-
-                <div class="s-body">
-                    <div class="s-block">
-                        <div class="s-block-label">Consigne Médicale / État</div>
-                        <div class="s-block-text"><?php echo nl2br(htmlspecialchars($s['etat_general'])); ?></div>
-                    </div>
-                    <div class="s-block">
-                        <div class="s-block-label">Analyses Prescrites</div>
-                        <div class="s-block-text"><?php echo nl2br(htmlspecialchars($s['analyses_a_realiser'] ?? 'Aucune')); ?></div>
-                    </div>
-                    
-                    <?php if(!empty($s['resultat_analyses'])): ?>
-                    <div class="s-block highlight">
-                        <div class="s-block-label" style="color:#b45309;"><i class="fas fa-flask"></i> Résultats Postulés par le Patient</div>
-                        <div class="s-block-text" style="color:#78350f; font-weight:600;"><?php echo nl2br(htmlspecialchars($s['resultat_analyses'])); ?></div>
-                    </div>
-                    <?php endif; ?>
-                </div>
-
-                <form method="POST" onsubmit="return confirm('Confirmer la suppression ?');">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="id_suivie" value="<?php echo $s['id_suivie']; ?>">
-                    <button type="submit" class="btn-delete"><i class="fas fa-trash-can"></i> Supprimer ce dossier</button>
-                </form>
+            
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="Rechercher par patient, ID, état, date...">
             </div>
-            <?php endforeach; ?>
+
+            <div id="suivieList">
+                <?php foreach ($suivis as $s): ?>
+                <div class="s-item" data-search="<?php echo htmlspecialchars(strtolower($s['patient_nom'].' '.$s['patient_prenom'].' '.$s['id_suivie'].' '.$s['etat_general'].' '.$s['date_suivi'])); ?>">
+                    <div class="s-header">
+                        <div>
+                            <div class="s-patient"><?php echo htmlspecialchars($s['patient_nom'] . ' ' . $s['patient_prenom']); ?></div>
+                            <div class="s-date"><i class="fas fa-calendar-alt"></i> Prescrit le <?php echo $s['date_suivi']; ?></div>
+                        </div>
+                        <span class="badge" style="background:#fff; border:1px solid var(--border); padding:6px 12px; border-radius:10px; font-size:0.7rem; font-weight:750;">ID: #<?php echo $s['id_suivie']; ?></span>
+                    </div>
+
+                    <div class="row-metrics">
+                        <div class="metric-box"><i class="fas fa-weight-scale"></i><div><div class="m-lbl">Poids</div><div class="m-val"><?php echo $s['poids'] ? $s['poids'].' kg' : '-'; ?></div></div></div>
+                        <div class="metric-box"><i class="fas fa-droplet"></i><div><div class="m-lbl">Tension</div><div class="m-val"><?php echo htmlspecialchars($s['tension'] ?? '-'); ?></div></div></div>
+                    </div>
+
+                    <div class="s-body">
+                        <div class="s-block">
+                            <div class="s-block-label">Consigne Médicale / État</div>
+                            <div class="s-block-text"><?php echo nl2br(htmlspecialchars($s['etat_general'])); ?></div>
+                        </div>
+                        <div class="s-block">
+                            <div class="s-block-label">Analyses Prescrites</div>
+                            <div class="s-block-text"><?php echo nl2br(htmlspecialchars($s['analyses_a_realiser'] ?? 'Aucune')); ?></div>
+                        </div>
+                        
+                        <?php if(!empty($s['resultat_analyses'])): ?>
+                        <div class="s-block highlight">
+                            <div class="s-block-label" style="color:#b45309;"><i class="fas fa-flask"></i> Résultats Postulés par le Patient</div>
+                            <div class="s-block-text" style="color:#78350f; font-weight:600;"><?php echo nl2br(htmlspecialchars($s['resultat_analyses'])); ?></div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="actions-row">
+                        <button class="btn-pdf" onclick="exportSuiviePDF(<?php echo htmlspecialchars(json_encode($s)); ?>)">
+                            <i class="fas fa-file-pdf"></i> Exporter PDF
+                        </button>
+
+                        <form method="POST" onsubmit="return confirm('Confirmer la suppression ?');" style="margin:0;">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="id_suivie" value="<?php echo $s['id_suivie']; ?>">
+                            <button type="submit" class="btn-delete"><i class="fas fa-trash-can"></i> Supprimer ce dossier</button>
+                        </form>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 </main>
 
 <script>
-/**
- * Contrôle de saisie personnalisé avec messages en rouge
- */
+// --- Recherche en temps réel ---
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('.s-item');
+    
+    items.forEach(item => {
+        const content = item.getAttribute('data-search');
+        if (content.includes(term)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+// --- Export PDF ---
+function exportSuiviePDF(data) {
+    const element = document.createElement('div');
+    element.style.padding = '40px';
+    element.style.fontFamily = "'Outfit', sans-serif";
+    
+    element.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #10b981; padding-bottom:20px; margin-bottom:30px;">
+            <div>
+                <h1 style="color:#10b981; margin:0; font-size:24px;">GlobalHealth Connect</h1>
+                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">Plateforme de Suivi Médical</p>
+            </div>
+            <div style="text-align:right;">
+                <p style="margin:0; font-weight:bold;">Rapport de Suivi Médical</p>
+                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #SUI-${data.id_suivie}</p>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
+            <div>
+                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p>
+            </div>
+            <div style="text-align:right;">
+                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Date du rapport</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">${data.date_suivi}</p>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:20px; margin-bottom:30px;">
+            <div style="flex:1; background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #dcfce7;">
+                <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin:0 0 5px; font-weight:bold;">Poids</p>
+                <p style="font-size:18px; font-weight:bold; margin:0;">${data.poids ? data.poids + ' kg' : '-'}</p>
+            </div>
+            <div style="flex:1; background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #dcfce7;">
+                <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin:0 0 5px; font-weight:bold;">Tension</p>
+                <p style="font-size:18px; font-weight:bold; margin:0;">${data.tension || '-'}</p>
+            </div>
+        </div>
+
+        <div style="margin-bottom:30px;">
+            <p style="font-size:10px; text-transform:uppercase; color:#10b981; margin-bottom:10px; font-weight:bold; border-bottom:1px solid #e2e8f0; padding-bottom:5px;">État Général & Observations</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.etat_general.replace(/\n/g, '<br>')}</p>
+        </div>
+
+        <div style="margin-bottom:30px;">
+            <p style="font-size:10px; text-transform:uppercase; color:#10b981; margin-bottom:10px; font-weight:bold; border-bottom:1px solid #e2e8f0; padding-bottom:5px;">Analyses Prescrites</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${(data.analyses_a_realiser || 'Aucune').replace(/\n/g, '<br>')}</p>
+        </div>
+
+        ${data.resultat_analyses ? `
+        <div style="margin-bottom:30px; background:#fffcf0; padding:20px; border-radius:12px; border:1px solid #fde68a;">
+            <p style="font-size:10px; text-transform:uppercase; color:#b45309; margin-bottom:10px; font-weight:bold;">Résultats d'Analyses (Patient)</p>
+            <p style="font-size:14px; line-height:1.6; color:#78350f; margin:0;">${data.resultat_analyses.replace(/\n/g, '<br>')}</p>
+        </div>
+        ` : ''}
+
+        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
+            <p>Ce document est un rapport médical généré par GlobalHealth Connect.</p>
+            <p>Prochain rendez-vous prévu : ${data.prochain_rdv || 'À définir'}</p>
+            <p style="margin-top:10px;">Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</p>
+        </div>
+    `;
+
+    const opt = {
+        margin:       10,
+        filename:     `Suivi_${data.patient_nom}_${data.date_suivi}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+}
+
+// --- Validation Formulaire ---
 function validateSuivieForm(event) {
-    // 1. Récupération des éléments et des zones d'erreur
     const fields = {
         id_consultation: { input: document.getElementById('id_consultation'), err: document.getElementById('err_id_consultation') },
         date_suivi:      { input: document.getElementById('date_suivi'),      err: document.getElementById('err_date_suivi') },
@@ -245,27 +347,19 @@ function validateSuivieForm(event) {
 
     let hasError = false;
 
-    // Réinitialisation des erreurs
     for (let key in fields) {
         fields[key].input.classList.remove('is-invalid');
         fields[key].err.style.display = 'none';
     }
 
-    // --- VALIDATIONS ---
-
-    // ID Consultation
     if (fields.id_consultation.input.value === "") {
         showError(fields.id_consultation, "Veuillez sélectionner une consultation.");
         hasError = true;
     }
-
-    // Date
     if (fields.date_suivi.input.value === "") {
         showError(fields.date_suivi, "La date est obligatoire.");
         hasError = true;
     }
-
-    // Poids
     if (fields.poids.input.value !== "") {
         const p = parseFloat(fields.poids.input.value);
         if (isNaN(p) || p <= 0 || p > 500) {
@@ -273,16 +367,12 @@ function validateSuivieForm(event) {
             hasError = true;
         }
     }
-
-    // Tension
     if (fields.tension.input.value !== "") {
         if (!/^\d{2,3}\/\d{2,3}$/.test(fields.tension.input.value)) {
             showError(fields.tension, "Format invalide (ex: 120/80).");
             hasError = true;
         }
     }
-
-    // État général
     if (fields.etat_general.input.value.trim().length < 5) {
         showError(fields.etat_general, "Veuillez saisir au moins 5 caractères.");
         hasError = true;
@@ -295,14 +385,12 @@ function validateSuivieForm(event) {
     return true;
 }
 
-// Fonction utilitaire pour afficher une erreur
 function showError(fieldObj, message) {
     fieldObj.input.classList.add('is-invalid');
     fieldObj.err.textContent = message;
     fieldObj.err.style.display = 'block';
 }
 
-// Liaison au formulaire
 document.getElementById('suivieForm').onsubmit = validateSuivieForm;
 </script>
 

@@ -71,25 +71,25 @@
         .cons-label { font-size:0.65rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
         .cons-text { font-size:0.9rem; line-height:1.5; }
 
-        .btn-delete { background:transparent; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; font-weight:700; margin-top:16px; }
+        .btn-delete { background:transparent; border:none; color:#ef4444; cursor:pointer; font-size:0.8rem; font-weight:700; }
+        .btn-pdf { background:#4f46e5; color:#fff; border:none; padding:8px 16px; border-radius:10px; font-size:0.75rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; transition: all 0.2s; }
+        .btn-pdf:hover { background:#4338ca; transform:scale(1.05); }
+
+        .actions-row { display:flex; gap:16px; align-items:center; margin-top:16px; padding-top:16px; border-top:1px dashed var(--border); }
+
+        .search-container { position:relative; margin-bottom:24px; }
+        .search-container i { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); }
+        .search-input { width:100%; padding:12px 16px 12px 44px; border-radius:14px; border:1.5px solid var(--border); font-family:inherit; outline:none; transition:all 0.2s; }
+        .search-input:focus { border-color:var(--primary); box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1); }
 
         .alert { padding:16px; border-radius:12px; margin-bottom:24px; font-weight:600; display:flex; align-items:center; gap:10px; }
         .alert-success { background:#f0fdf4; color:#16a34a; border: 1px solid #dcfce7; }
         .alert-error { background:#fef2f2; color:#ef4444; border: 1px solid #fee2e2; }
 
-        /* Style pour les messages d'erreur en rouge */
-        .error-msg {
-            color: #ef4444;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-top: 4px;
-            display: none;
-        }
-        .f-control.is-invalid {
-            border-color: #ef4444 !important;
-            background-color: #fef2f2;
-        }
+        .error-msg { color: #ef4444; font-size: 0.75rem; font-weight: 600; margin-top: 4px; display: none; }
+        .f-control.is-invalid { border-color: #ef4444 !important; background-color: #fef2f2; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -162,39 +162,132 @@
 
         <div class="list-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Journal des Consultations</h3>
-            <?php foreach ($consultations as $c): ?>
-            <div class="cons-item">
-                <div class="cons-header">
-                    <div>
-                        <div class="cons-patient"><?php echo htmlspecialchars($c['patient_nom'] . ' ' . $c['patient_prenom']); ?></div>
-                        <div class="cons-date">Rendez-vous du <?php echo $c['date_rdv']; ?> à <?php echo $c['heure_rdv']; ?></div>
-                    </div>
-                    <span class="badge" style="background:#fff; border:1px solid var(--border); padding:6px 12px; border-radius:10px; font-size:0.7rem; font-weight:750;">ID: #<?php echo $c['id_consultation']; ?></span>
-                </div>
-                
-                <div class="cons-body">
-                    <div>
-                        <div class="cons-label">Diagnostic</div>
-                        <div class="cons-text"><?php echo nl2br(htmlspecialchars($c['diagnostic'])); ?></div>
-                    </div>
-                    <div>
-                        <div class="cons-label">Traitement</div>
-                        <div class="cons-text"><?php echo nl2br(htmlspecialchars($c['traitement'])); ?></div>
-                    </div>
-                </div>
-
-                <form method="POST" onsubmit="return confirm('Supprimer définitivement ?');">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="id_consultation" value="<?php echo $c['id_consultation']; ?>">
-                    <button type="submit" class="btn-delete"><i class="fas fa-trash-can"></i> Supprimer</button>
-                </form>
+            
+            <div class="search-container">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" class="search-input" placeholder="Rechercher par patient, ID, diagnostic, date...">
             </div>
-            <?php endforeach; ?>
+
+            <div id="consultationList">
+                <?php foreach ($consultations as $c): ?>
+                <div class="cons-item" data-search="<?php echo htmlspecialchars(strtolower($c['patient_nom'].' '.$c['patient_prenom'].' '.$c['id_consultation'].' '.$c['diagnostic'].' '.$c['date_rdv'])); ?>">
+                    <div class="cons-header">
+                        <div>
+                            <div class="cons-patient"><?php echo htmlspecialchars($c['patient_nom'] . ' ' . $c['patient_prenom']); ?></div>
+                            <div class="cons-date">Rendez-vous du <?php echo $c['date_rdv']; ?> à <?php echo $c['heure_rdv']; ?></div>
+                        </div>
+                        <span class="badge" style="background:#fff; border:1px solid var(--border); padding:6px 12px; border-radius:10px; font-size:0.7rem; font-weight:750;">ID: #<?php echo $c['id_consultation']; ?></span>
+                    </div>
+                    
+                    <div class="cons-body">
+                        <div>
+                            <div class="cons-label">Diagnostic</div>
+                            <div class="cons-text"><?php echo nl2br(htmlspecialchars($c['diagnostic'])); ?></div>
+                        </div>
+                        <div>
+                            <div class="cons-label">Traitement</div>
+                            <div class="cons-text"><?php echo nl2br(htmlspecialchars($c['traitement'])); ?></div>
+                        </div>
+                    </div>
+
+                    <div class="actions-row">
+                        <button class="btn-pdf" onclick="exportConsultationPDF(<?php echo htmlspecialchars(json_encode($c)); ?>)">
+                            <i class="fas fa-file-pdf"></i> Exporter PDF
+                        </button>
+
+                        <form method="POST" onsubmit="return confirm('Supprimer définitivement ?');" style="margin:0;">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="id_consultation" value="<?php echo $c['id_consultation']; ?>">
+                            <button type="submit" class="btn-delete"><i class="fas fa-trash-can"></i> Supprimer</button>
+                        </form>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 </main>
 
 <script>
+// --- Recherche en temps réel ---
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('.cons-item');
+    
+    items.forEach(item => {
+        const content = item.getAttribute('data-search');
+        if (content.includes(term)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+// --- Export PDF ---
+function exportConsultationPDF(data) {
+    const element = document.createElement('div');
+    element.style.padding = '40px';
+    element.style.fontFamily = "'Outfit', sans-serif";
+    
+    element.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:20px; margin-bottom:30px;">
+            <div>
+                <h1 style="color:#2563eb; margin:0; font-size:24px;">GlobalHealth Connect</h1>
+                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">Plateforme de Suivi Médical</p>
+            </div>
+            <div style="text-align:right;">
+                <p style="margin:0; font-weight:bold;">Compte-rendu de Consultation</p>
+                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #CONS-${data.id_consultation}</p>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
+            <div>
+                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p>
+            </div>
+            <div style="text-align:right;">
+                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Date de consultation</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">${data.date_rdv}</p>
+            </div>
+        </div>
+
+        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Diagnostic</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.diagnostic.replace(/\n/g, '<br>')}</p>
+        </div>
+
+        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Traitement Prescrit</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.traitement.replace(/\n/g, '<br>')}</p>
+        </div>
+
+        ${data.notes ? `
+        <div style="margin-bottom:30px;">
+            <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:10px; font-weight:bold;">Notes additionnelles</p>
+            <p style="font-size:13px; line-height:1.6; color:#475569; margin:0;">${data.notes.replace(/\n/g, '<br>')}</p>
+        </div>
+        ` : ''}
+
+        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
+            <p>Ce document est un compte-rendu médical officiel généré par GlobalHealth Connect.</p>
+            <p>Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</p>
+        </div>
+    `;
+
+    const opt = {
+        margin:       10,
+        filename:     `Consultation_${data.patient_nom}_${data.date_rdv}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+}
+
+// --- Validation Formulaire ---
 document.getElementById('consultationForm').addEventListener('submit', function(e) {
     const fields = {
         id_rdv:     { input: document.getElementById('id_rdv'),     err: document.getElementById('err_id_rdv') },

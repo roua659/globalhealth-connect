@@ -72,7 +72,17 @@
         .sub-cell  { font-size:0.8rem; color:var(--text-muted); margin-top:2px; }
         .diag-text { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .empty-row td { text-align:center; color:var(--text-muted); padding:32px; font-style:italic; }
+
+        /* NEW ADMIN SEARCH & PDF STYLES */
+        .search-box { position:relative; margin-bottom:16px; width:300px; }
+        .search-box i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:0.8rem; }
+        .search-box input { width:100%; padding:8px 12px 8px 34px; border-radius:10px; border:1px solid var(--border); font-family:inherit; font-size:0.85rem; outline:none; }
+        .search-box input:focus { border-color:var(--primary); }
+
+        .btn-pdf-sm { background:#4f46e5; color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+        .btn-pdf-sm:hover { background:#4338ca; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -126,10 +136,14 @@
     <div class="panel" id="consultations">
         <div class="panel-header">
             <div class="panel-title"><i class="fas fa-notes-medical"></i>Liste des Consultations</div>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" onkeyup="filterTable('tableConsultations', this.value)" placeholder="Rechercher consultation...">
+            </div>
             <span class="count-badge"><?php echo count($listeConsultations); ?> enregistrement(s)</span>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="tableConsultations">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -139,7 +153,7 @@
                         <th>Date RDV</th>
                         <th>Diagnostic</th>
                         <th>Traitement</th>
-                        <th>Créé le</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -147,7 +161,7 @@
                     <tr class="empty-row"><td colspan="8">Aucune consultation enregistrée.</td></tr>
                     <?php else: ?>
                     <?php foreach ($listeConsultations as $c): ?>
-                    <tr>
+                    <tr data-search="<?php echo htmlspecialchars(strtolower($c['patient_nom'].' '.$c['patient_prenom'].' '.$c['medecin_nom'].' '.$c['diagnostic'])); ?>">
                         <td><span class="badge badge-gray">#<?php echo $c['id_consultation']; ?></span></td>
                         <td>
                             <div class="name-cell"><?php echo htmlspecialchars($c['patient_nom'] . ' ' . $c['patient_prenom']); ?></div>
@@ -159,7 +173,11 @@
                         <td><?php echo htmlspecialchars($c['date_rdv'] ?? '—'); ?></td>
                         <td><div class="diag-text" title="<?php echo htmlspecialchars($c['diagnostic']); ?>"><?php echo htmlspecialchars($c['diagnostic']); ?></div></td>
                         <td><div class="diag-text" title="<?php echo htmlspecialchars($c['traitement']); ?>"><?php echo htmlspecialchars($c['traitement']); ?></div></td>
-                        <td><span style="color:var(--text-muted); font-size:0.8rem;"><?php echo date('d/m/Y', strtotime($c['date_creation'])); ?></span></td>
+                        <td>
+                            <button class="btn-pdf-sm" onclick="exportConsultationPDF(<?php echo htmlspecialchars(json_encode($c)); ?>)">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                     <?php endif; ?>
@@ -174,10 +192,14 @@
     <div class="panel" id="suivis">
         <div class="panel-header">
             <div class="panel-title"><i class="fas fa-heart-pulse"></i>Liste des Suivis Médicaux</div>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" onkeyup="filterTable('tableSuivis', this.value)" placeholder="Rechercher suivi...">
+            </div>
             <span class="count-badge"><?php echo count($listeSuivis); ?> enregistrement(s)</span>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="tableSuivis">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -187,16 +209,15 @@
                         <th>Poids</th>
                         <th>Tension</th>
                         <th>État Général</th>
-                        <th>Analyses Prescrites</th>
-                        <th>Prochain RDV</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($listeSuivis)): ?>
-                    <tr class="empty-row"><td colspan="9">Aucun suivi enregistré.</td></tr>
+                    <tr class="empty-row"><td colspan="8">Aucun suivi enregistré.</td></tr>
                     <?php else: ?>
                     <?php foreach ($listeSuivis as $s): ?>
-                    <tr>
+                    <tr data-search="<?php echo htmlspecialchars(strtolower($s['patient_nom'].' '.$s['patient_prenom'].' '.$s['medecin_nom'].' '.$s['etat_general'])); ?>">
                         <td><span class="badge badge-gray">#<?php echo $s['id_suivie']; ?></span></td>
                         <td>
                             <div class="name-cell"><?php echo htmlspecialchars($s['patient_nom'] . ' ' . $s['patient_prenom']); ?></div>
@@ -215,13 +236,10 @@
                         </td>
                         <td><?php echo htmlspecialchars($s['tension'] ?? '—'); ?></td>
                         <td><div class="diag-text" title="<?php echo htmlspecialchars($s['etat_general']); ?>"><?php echo htmlspecialchars($s['etat_general']); ?></div></td>
-                        <td><div class="diag-text" title="<?php echo htmlspecialchars($s['analyses_a_realiser'] ?? ''); ?>"><?php echo htmlspecialchars($s['analyses_a_realiser'] ?: '—'); ?></div></td>
                         <td>
-                            <?php if ($s['prochain_rdv']): ?>
-                                <span class="badge badge-purple"><?php echo htmlspecialchars($s['prochain_rdv']); ?></span>
-                            <?php else: ?>
-                                <span style="color:var(--text-muted);">—</span>
-                            <?php endif; ?>
+                            <button class="btn-pdf-sm" onclick="exportSuiviePDF(<?php echo htmlspecialchars(json_encode($s)); ?>)" style="background:#10b981;">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -237,10 +255,14 @@
     <div class="panel" id="patients">
         <div class="panel-header">
             <div class="panel-title"><i class="fas fa-users"></i>Liste des Patients</div>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" onkeyup="filterTable('tablePatients', this.value)" placeholder="Rechercher patient...">
+            </div>
             <span class="count-badge"><?php echo count($listePatients); ?> patient(s)</span>
         </div>
         <div class="table-wrap">
-            <table>
+            <table id="tablePatients">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -255,7 +277,7 @@
                     <tr class="empty-row"><td colspan="5">Aucun patient enregistré.</td></tr>
                     <?php else: ?>
                     <?php foreach ($listePatients as $p): ?>
-                    <tr>
+                    <tr data-search="<?php echo htmlspecialchars(strtolower($p['nom'].' '.$p['prenom'].' '.$p['email'])); ?>">
                         <td class="name-cell"><?php echo htmlspecialchars($p['nom'] . ' ' . $p['prenom']); ?></td>
                         <td style="color:var(--text-muted);"><?php echo htmlspecialchars($p['email']); ?></td>
                         <td>
@@ -286,6 +308,71 @@
     </div>
 
 </main>
+
+<script>
+function filterTable(tableId, term) {
+    term = term.toLowerCase();
+    const rows = document.querySelectorAll(`#${tableId} tbody tr:not(.empty-row)`);
+    rows.forEach(row => {
+        const text = row.getAttribute('data-search') || "";
+        row.style.display = text.includes(term) ? "" : "none";
+    });
+}
+
+function exportConsultationPDF(data) {
+    const element = document.createElement('div');
+    element.style.padding = '40px';
+    element.style.fontFamily = "'Outfit', sans-serif";
+    element.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #4f46e5; padding-bottom:20px; margin-bottom:30px;">
+            <div><h1 style="color:#4f46e5; margin:0; font-size:24px;">GlobalHealth Connect</h1><p style="margin:5px 0 0; color:#64748b; font-size:12px;">Admin Record Export</p></div>
+            <div style="text-align:right;"><p style="margin:0; font-weight:bold;">Compte-rendu de Consultation</p><p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #CONS-${data.id_consultation}</p></div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
+            <div><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p><p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p></div>
+            <div style="text-align:right;"><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Médecin</p><p style="font-size:16px; font-weight:bold; margin:0;">Dr. ${data.medecin_nom} ${data.medecin_prenom}</p></div>
+        </div>
+        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#4f46e5; margin-bottom:10px; font-weight:bold;">Diagnostic</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.diagnostic.replace(/\n/g, '<br>')}</p>
+        </div>
+        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#4f46e5; margin-bottom:10px; font-weight:bold;">Traitement Prescrit</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.traitement.replace(/\n/g, '<br>')}</p>
+        </div>
+        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
+            <p>Document administratif exporté depuis GlobalHealth Connect.</p>
+            <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
+        </div>
+    `;
+    html2pdf().set({ margin:10, filename:`Admin_Consultation_${data.patient_nom}.pdf` }).from(element).save();
+}
+
+function exportSuiviePDF(data) {
+    const element = document.createElement('div');
+    element.style.padding = '40px';
+    element.style.fontFamily = "'Outfit', sans-serif";
+    element.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #10b981; padding-bottom:20px; margin-bottom:30px;">
+            <div><h1 style="color:#10b981; margin:0; font-size:24px;">GlobalHealth Connect</h1><p style="margin:5px 0 0; color:#64748b; font-size:12px;">Admin Record Export</p></div>
+            <div style="text-align:right;"><p style="margin:0; font-weight:bold;">Rapport de Suivi Médical</p><p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #SUI-${data.id_suivie}</p></div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
+            <div><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p><p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p></div>
+            <div style="text-align:right;"><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Médecin</p><p style="font-size:16px; font-weight:bold; margin:0;">Dr. ${data.medecin_nom} ${data.medecin_prenom}</p></div>
+        </div>
+        <div style="margin-bottom:30px; background:#f0fdf4; padding:20px; border-radius:12px; border:1px solid #dcfce7;">
+            <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin-bottom:10px; font-weight:bold;">État Général / Consignes</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.etat_general.replace(/\n/g, '<br>')}</p>
+        </div>
+        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
+            <p>Document administratif exporté depuis GlobalHealth Connect.</p>
+            <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
+        </div>
+    `;
+    html2pdf().set({ margin:10, filename:`Admin_Suivi_${data.patient_nom}.pdf` }).from(element).save();
+}
+</script>
 
 </body>
 </html>
