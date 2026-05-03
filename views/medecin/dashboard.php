@@ -111,6 +111,22 @@
         </div>
     </div>
 
+    <!-- CHARTS SECTION -->
+    <div class="grid-2" style="margin-bottom:40px;">
+        <div class="section-card">
+            <h3 class="section-title"><i class="fas fa-stethoscope"></i>Top Diagnostics</h3>
+            <div style="height:300px; position:relative;">
+                <canvas id="diagChart"></canvas>
+            </div>
+        </div>
+        <div class="section-card">
+            <h3 class="section-title"><i class="fas fa-chart-pie"></i>Répartition États Patients</h3>
+            <div style="height:300px; position:relative;">
+                <canvas id="etatChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <div class="grid-2">
         <div class="section-card">
             <h3 class="section-title"><i class="fas fa-clock-rotate-left"></i>Dernières Consultations</h3>
@@ -140,5 +156,64 @@
     </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // --- Chart 1: Répartition par Diagnostic ---
+    const ctx1 = document.getElementById('diagChart').getContext('2d');
+    new Chart(ctx1, {
+        type: 'pie',
+        data: {
+            labels: <?php echo json_encode(array_column($statsDiag, 'diagnostic')); ?>,
+            datasets: [{
+                data: <?php echo json_encode(array_column($statsDiag, 'nb')); ?>,
+                backgroundColor: ['#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#fb923c'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { boxWidth: 12, font: { family: 'Outfit', size: 11 } }
+                }
+            }
+        }
+    });
+
+    // --- Chart 2: Répartition État Général ---
+    const ctx2 = document.getElementById('etatChart').getContext('2d');
+    new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+            labels: <?php echo json_encode(array_column($statsEtat, 'etat_general')); ?>,
+            datasets: [{
+                data: <?php echo json_encode(array_column($statsEtat, 'nb')); ?>,
+                backgroundColor: [
+                    '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'
+                ],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        font: { family: 'Outfit', size: 11 }
+                    }
+                }
+            }
+        }
+    });
+</script>
 </body>
 </html>

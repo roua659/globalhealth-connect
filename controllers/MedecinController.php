@@ -67,6 +67,33 @@ class MedecinController {
         $stmt->execute([$medecinId]);
         $derniersSuivis = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // --- DONNÉES POUR LES GRAPHIQUES ---
+        
+        // 1. Répartition par Diagnostic (Top 5)
+        $stmt = $this->db->prepare("
+            SELECT diagnostic, COUNT(*) as nb
+            FROM consultation c
+            JOIN rendezvous r ON c.id_rdv = r.id_rdv
+            WHERE r.id_medecin = ?
+            GROUP BY diagnostic
+            ORDER BY nb DESC
+            LIMIT 5
+        ");
+        $stmt->execute([$medecinId]);
+        $statsDiag = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2. Répartition de l'état des patients (basé sur les suivis)
+        $stmt = $this->db->prepare("
+            SELECT etat_general, COUNT(*) as nb 
+            FROM suivie 
+            WHERE id_medecin = ? 
+            GROUP BY etat_general 
+            ORDER BY nb DESC 
+            LIMIT 5
+        ");
+        $stmt->execute([$medecinId]);
+        $statsEtat = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         require_once 'views/medecin/dashboard.php';
     }
 

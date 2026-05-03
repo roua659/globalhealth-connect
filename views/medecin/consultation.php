@@ -163,14 +163,30 @@
         <div class="list-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Journal des Consultations</h3>
             
-            <div class="search-container">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" class="search-input" placeholder="Rechercher par patient, ID, diagnostic, date...">
+            <div class="search-container" style="display:flex; gap:12px; align-items:center;">
+                <div style="position:relative; flex:1;">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Rechercher par patient, ID, diagnostic, date...">
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <select id="sortSelect" class="f-control" style="width:160px; padding:8px 12px; margin:0;">
+                        <option value="date">Date RDV</option>
+                        <option value="patient">Patient</option>
+                        <option value="id">ID #</option>
+                    </select>
+                    <button id="sortOrderBtn" class="btn-pdf" style="padding:10px; background:#fff; color:var(--text-main); border:1.5px solid var(--border);">
+                        <i class="fas fa-sort-amount-down"></i>
+                    </button>
+                </div>
             </div>
 
             <div id="consultationList">
                 <?php foreach ($consultations as $c): ?>
-                <div class="cons-item" data-search="<?php echo htmlspecialchars(strtolower($c['patient_nom'].' '.$c['patient_prenom'].' '.$c['id_consultation'].' '.$c['diagnostic'].' '.$c['date_rdv'])); ?>">
+                <div class="cons-item" 
+                     data-search="<?php echo htmlspecialchars(strtolower($c['patient_nom'].' '.$c['patient_prenom'].' '.$c['id_consultation'].' '.$c['diagnostic'].' '.$c['date_rdv'])); ?>"
+                     data-date="<?php echo $c['date_rdv']; ?>"
+                     data-patient="<?php echo htmlspecialchars(strtolower($c['patient_nom'].' '.$c['patient_prenom'])); ?>"
+                     data-id="<?php echo $c['id_consultation']; ?>">
                     <div class="cons-header">
                         <div>
                             <div class="cons-patient"><?php echo htmlspecialchars($c['patient_nom'] . ' ' . $c['patient_prenom']); ?></div>
@@ -209,20 +225,47 @@
 </main>
 
 <script>
-// --- Recherche en temps réel ---
-document.getElementById('searchInput').addEventListener('input', function(e) {
-    const term = e.target.value.toLowerCase();
-    const items = document.querySelectorAll('.cons-item');
-    
+// --- Tri et Filtre Combinés ---
+const searchInput = document.getElementById('searchInput');
+const sortSelect = document.getElementById('sortSelect');
+const sortOrderBtn = document.getElementById('sortOrderBtn');
+let sortDirection = -1; // -1 pour Descendant par défaut (plus récent)
+
+searchInput.addEventListener('input', filterAndSort);
+sortSelect.addEventListener('change', filterAndSort);
+sortOrderBtn.addEventListener('click', () => {
+    sortDirection *= -1;
+    sortOrderBtn.querySelector('i').className = sortDirection === 1 ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+    filterAndSort();
+});
+
+function filterAndSort() {
+    const term = searchInput.value.toLowerCase();
+    const sortBy = sortSelect.value;
+    const container = document.getElementById('consultationList');
+    const items = Array.from(container.querySelectorAll('.cons-item'));
+
+    // 1. Filtrer
     items.forEach(item => {
         const content = item.getAttribute('data-search');
-        if (content.includes(term)) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
+        item.style.display = content.includes(term) ? 'block' : 'none';
     });
-});
+
+    // 2. Trier
+    items.sort((a, b) => {
+        let valA = a.getAttribute(`data-${sortBy}`);
+        let valB = b.getAttribute(`data-${sortBy}`);
+
+        if (sortBy === 'id') { valA = parseInt(valA); valB = parseInt(valB); }
+
+        if (valA < valB) return -1 * sortDirection;
+        if (valA > valB) return 1 * sortDirection;
+        return 0;
+    });
+
+    // 3. Réorganiser le DOM
+    items.forEach(item => container.appendChild(item));
+}
 
 // --- Export PDF ---
 function exportConsultationPDF(data) {
