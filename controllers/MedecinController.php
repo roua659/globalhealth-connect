@@ -37,6 +37,22 @@ class MedecinController {
         $stmt->execute([$medecinId]);
         $nbPatients = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
+        // Calcul des alertes critiques (Tension >= 140/90)
+        $alertesCritiques = 0;
+        $stmt = $this->db->prepare("SELECT tension FROM suivie WHERE id_medecin = ?");
+        $stmt->execute([$medecinId]);
+        $allTensions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach($allTensions as $t) {
+            if(!empty($t['tension'])) {
+                $parts = explode('/', $t['tension']);
+                if(count($parts) == 2) {
+                    if((int)$parts[0] >= 140 || (int)$parts[1] >= 90) {
+                        $alertesCritiques++;
+                    }
+                }
+            }
+        }
+
         // Dernières consultations réalisées par ce médecin (5)
         $stmt = $this->db->prepare("
             SELECT c.id_consultation, c.diagnostic, c.traitement, c.date_creation,
@@ -134,6 +150,31 @@ class MedecinController {
                 }
             }
 
+            if ($action === 'edit') {
+                $id         = intval($_POST['id_consultation'] ?? 0);
+                $id_rdv     = intval($_POST['id_rdv'] ?? 0);
+                $diagnostic = trim($_POST['diagnostic'] ?? '');
+                $traitement = trim($_POST['traitement'] ?? '');
+                $notes      = trim($_POST['notes'] ?? '');
+
+                if ($id && $id_rdv && $diagnostic && $traitement) {
+                    $model = new ConsultationModel();
+                    $model->id_consultation = $id;
+                    $model->id_rdv         = $id_rdv;
+                    $model->diagnostic     = $diagnostic;
+                    $model->traitement     = $traitement;
+                    $model->notes          = $notes;
+
+                    if ($model->update()) {
+                        $message = "Consultation mise à jour !";
+                        $messageType = 'success';
+                    } else {
+                        $message = "Erreur lors de la mise à jour.";
+                        $messageType = 'error';
+                    }
+                }
+            }
+
             if ($action === 'delete') {
                 $id = intval($_POST['id_consultation'] ?? 0);
                 if ($id) {
@@ -173,6 +214,11 @@ class MedecinController {
         ");
         $stmt->execute([$medecinId]);
         $consultations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Récupérer la signature du médecin
+        $stmt = $this->db->prepare("SELECT signature FROM medecin WHERE id_medecin = ?");
+        $stmt->execute([$medecinId]);
+        $signature = $stmt->fetch(PDO::FETCH_ASSOC)['signature'] ?? null;
 
         require_once 'views/medecin/consultation.php';
     }
@@ -252,6 +298,49 @@ class MedecinController {
                 }
             }
 
+            if ($action === 'edit') {
+                $id_suivie           = intval($_POST['id_suivie'] ?? 0);
+                $id_consultation     = intval($_POST['id_consultation'] ?? 0);
+                $date_suivi          = trim($_POST['date_suivi'] ?? '');
+                $poids               = $_POST['poids'] !== '' ? floatval($_POST['poids']) : null;
+                $tension             = trim($_POST['tension'] ?? '');
+                $etat_general        = trim($_POST['etat_general'] ?? '');
+                $analyses            = trim($_POST['analyses_a_realiser'] ?? '');
+                $regime              = trim($_POST['regime_alimentaire'] ?? '');
+                $activite            = trim($_POST['activite_physique'] ?? '');
+                $prochain_rdv        = trim($_POST['prochain_rdv'] ?? '');
+
+                if ($id_suivie && $id_consultation && $date_suivi) {
+                    $stmt = $this->db->prepare("SELECT r.id_patient FROM consultation c JOIN rendezvous r ON c.id_rdv = r.id_rdv WHERE c.id_consultation = ?");
+                    $stmt->execute([$id_consultation]);
+                    $res = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($res) {
+                        $model = new SuivieModel();
+                        $model->id_suivie           = $id_suivie;
+                        $model->id_patient          = $res['id_patient'];
+                        $model->id_medecin          = $medecinId;
+                        $model->id_consultation     = $id_consultation;
+                        $model->date_suivi          = $date_suivi;
+                        $model->poids               = $poids;
+                        $model->tension             = $tension;
+                        $model->etat_general        = $etat_general;
+                        $model->analyses_a_realiser = $analyses;
+                        $model->regime_alimentaire  = $regime;
+                        $model->activite_physique   = $activite;
+                        $model->prochain_rdv        = $prochain_rdv;
+
+                        if ($model->update()) {
+                            $message = "Suivi mis à jour !";
+                            $messageType = 'success';
+                        } else {
+                            $message = "Erreur lors de la mise à jour.";
+                            $messageType = 'error';
+                        }
+                    }
+                }
+            }
+
             if ($action === 'delete') {
                 $id = intval($_POST['id_suivie'] ?? 0);
                 if ($id) {
@@ -303,7 +392,60 @@ class MedecinController {
         $stmt->execute([$medecinId]);
         $suivis = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Récupérer la signature du médecin
+        $stmt = $this->db->prepare("SELECT signature FROM medecin WHERE id_medecin = ?");
+        $stmt->execute([$medecinId]);
+        $signature = $stmt->fetch(PDO::FETCH_ASSOC)['signature'] ?? null;
+
         require_once 'views/medecin/suivie.php';
+    }
+
+    // ── Profil & Signature ──
+    public function profile() {
+        $medecinId = $this->medecinId;
+        $message = '';
+        $messageType = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['signature'])) {
+            $targetDir = "uploads/signatures/";
+            $fileExtension = strtolower(pathinfo($_FILES["signature"]["name"], PATHINFO_EXTENSION));
+            $newFileName = "sig_" . $medecinId . "_" . time() . "." . $fileExtension;
+            $targetFile = $targetDir . $newFileName;
+
+            // Validation simple
+            $check = getimagesize($_FILES["signature"]["tmp_name"]);
+            if($check !== false) {
+                if (move_uploaded_file($_FILES["signature"]["tmp_name"], $targetFile)) {
+                    // Mettre à jour la BDD
+                    $stmt = $this->db->prepare("UPDATE medecin SET signature = ? WHERE id_medecin = ?");
+                    if ($stmt->execute([$newFileName, $medecinId])) {
+                        $message = "Signature mise à jour avec succès !";
+                        $messageType = 'success';
+                    } else {
+                        $message = "Erreur lors de la mise à jour en base de données.";
+                        $messageType = 'error';
+                    }
+                } else {
+                    $message = "Erreur lors de l'upload du fichier.";
+                    $messageType = 'error';
+                }
+            } else {
+                $message = "Le fichier n'est pas une image valide.";
+                $messageType = 'error';
+            }
+        }
+
+        // Récupérer les infos du médecin
+        $stmt = $this->db->prepare("
+            SELECT m.*, u.nom, u.prenom, u.email 
+            FROM medecin m 
+            JOIN utilisateur u ON m.id_user = u.id_user 
+            WHERE m.id_medecin = ?
+        ");
+        $stmt->execute([$medecinId]);
+        $medecin = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        require_once 'views/medecin/profile.php';
     }
 }
 ?>

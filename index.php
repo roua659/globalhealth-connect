@@ -116,6 +116,7 @@ switch ($controller) {
             case 'index':        $ctrl->index();        break;
             case 'consultation': $ctrl->consultation(); break;
             case 'suivie':       $ctrl->suivie();       break;
+            case 'profile':      $ctrl->profile();      break;
             default:             $ctrl->index();
         }
         break;
@@ -129,6 +130,16 @@ switch ($controller) {
             case 'consultations': $ctrl->consultations();   break;
             case 'suivis':        $ctrl->suivis();          break;
             default:              $ctrl->index();
+        }
+        break;
+
+    // ---------- VERIFY (Authenticité publique) ----------
+    case 'verify':
+        $ctrl = new VerifyController();
+        switch ($action) {
+            case 'consultation': $ctrl->consultation(); break;
+            case 'suivie':       $ctrl->suivie();       break;
+            default:             header('Location: index.php'); exit();
         }
         break;
 

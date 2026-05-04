@@ -104,6 +104,9 @@
     <a href="?controller=medecin&action=consultation" class="nav-item active"><i class="fas fa-notes-medical"></i>Consultations</a>
     <a href="?controller=medecin&action=suivie" class="nav-item"><i class="fas fa-heart-pulse"></i>Patient Follow-ups</a>
 
+    <div class="nav-label">Settings</div>
+    <a href="?controller=medecin&action=profile" class="nav-item"><i class="fas fa-user-md"></i>Mon Profil</a>
+
     <a href="?controller=auth&action=logout" class="logout"><i class="fas fa-door-open"></i>Terminer Session</a>
 </aside>
 
@@ -122,9 +125,16 @@
     <div class="page-split">
         <div class="form-card">
             <h3 style="margin-bottom:24px; font-weight:700;">Nouvelle Consultation</h3>
-            <form method="POST" id="consultationForm" novalidate>
-                <input type="hidden" name="action" value="add">
+            
+            <form method="POST" id="consultationForm">
+                <input type="hidden" name="action" id="formAction" value="add">
+                <input type="hidden" name="id_consultation" id="formId" value="">
                 
+                <div id="editModeIndicator" style="display:none; background:#eff6ff; padding:12px; border-radius:12px; border:1px solid #bfdbfe; margin-bottom:20px; font-size:0.85rem; color:#1e40af;">
+                    <i class="fas fa-pen-to-square"></i> Mode modification activé
+                    <button type="button" onclick="resetForm()" style="float:right; background:none; border:none; color:#1e40af; font-weight:700; cursor:pointer;">Annuler</button>
+                </div>
+
                 <div class="f-group">
                     <label class="f-label">Rendez-vous associé <span style="color:#ef4444;">*</span></label>
                     <select name="id_rdv" id="id_rdv" class="f-control">
@@ -153,10 +163,10 @@
 
                 <div class="f-group">
                     <label class="f-label">Notes privées</label>
-                    <textarea name="notes" class="f-control" rows="2"></textarea>
+                    <textarea name="notes" id="notes" class="f-control" rows="2"></textarea>
                 </div>
 
-                <button type="submit" class="btn-primary">Enregistrer la Consultation</button>
+                <button type="submit" id="submitBtn" class="btn-primary">Enregistrer la Consultation</button>
             </form>
         </div>
 
@@ -209,6 +219,10 @@
                     <div class="actions-row">
                         <button class="btn-pdf" onclick="exportConsultationPDF(<?php echo htmlspecialchars(json_encode($c)); ?>)">
                             <i class="fas fa-file-pdf"></i> Exporter PDF
+                        </button>
+
+                        <button class="btn-pdf" style="background:#3b82f6;" onclick='prepareEdit(<?php echo json_encode($c); ?>)'>
+                            <i class="fas fa-edit"></i> Modifier
                         </button>
 
                         <form method="POST" onsubmit="return confirm('Supprimer définitivement ?');" style="margin:0;">
@@ -273,61 +287,101 @@ function exportConsultationPDF(data) {
     element.style.padding = '40px';
     element.style.fontFamily = "'Outfit', sans-serif";
     
-    element.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:20px; margin-bottom:30px;">
-            <div>
-                <h1 style="color:#2563eb; margin:0; font-size:24px;">GlobalHealth Connect</h1>
-                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">Plateforme de Suivi Médical</p>
-            </div>
-            <div style="text-align:right;">
-                <p style="margin:0; font-weight:bold;">Compte-rendu de Consultation</p>
-                <p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #CONS-${data.id_consultation}</p>
-            </div>
-        </div>
+    const verifyUrl = `${window.location.origin}${window.location.pathname}?controller=verify&action=consultation&id=${data.id_consultation}`;
+    const qrImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(verifyUrl)}&size=100`;
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
-            <div>
-                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p>
-                <p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p>
-            </div>
-            <div style="text-align:right;">
-                <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Date de consultation</p>
-                <p style="font-size:16px; font-weight:bold; margin:0;">${data.date_rdv}</p>
-            </div>
-        </div>
+    // On charge les images (QR + Signature)
+    const qrImg = new Image();
+    const sigImg = new Image();
+    let loaded = 0;
+    const total = <?php echo $signature ? '2' : '1'; ?>;
 
-        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
-            <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Diagnostic</p>
-            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.diagnostic.replace(/\n/g, '<br>')}</p>
-        </div>
+    function checkLoaded() {
+        loaded++;
+        if (loaded === total) {
+            element.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:20px; margin-bottom:30px;">
+                    <div>
+                        <h1 style="color:#2563eb; margin:0; font-size:24px;">GlobalHealth Connect</h1>
+                        <p style="margin:5px 0 0; color:#64748b; font-size:12px;">Plateforme de Suivi Médical</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <p style="margin:0; font-weight:bold;">Compte-rendu de Consultation</p>
+                        <p style="margin:5px 0 0; color:#64748b; font-size:12px;">ID: #CONS-${data.id_consultation}</p>
+                    </div>
+                </div>
 
-        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
-            <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Traitement Prescrit</p>
-            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.traitement.replace(/\n/g, '<br>')}</p>
-        </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px; margin-bottom:40px;">
+                    <div>
+                        <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p>
+                        <p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Date de consultation</p>
+                        <p style="font-size:16px; font-weight:bold; margin:0;">${data.date_rdv}</p>
+                    </div>
+                </div>
 
-        ${data.notes ? `
-        <div style="margin-bottom:30px;">
-            <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:10px; font-weight:bold;">Notes additionnelles</p>
-            <p style="font-size:13px; line-height:1.6; color:#475569; margin:0;">${data.notes.replace(/\n/g, '<br>')}</p>
-        </div>
-        ` : ''}
+                <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+                    <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Diagnostic</p>
+                    <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.diagnostic.replace(/\n/g, '<br>')}</p>
+                </div>
 
-        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
-            <p>Ce document est un compte-rendu médical officiel généré par GlobalHealth Connect.</p>
-            <p>Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</p>
-        </div>
-    `;
+                <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+                    <p style="font-size:10px; text-transform:uppercase; color:#2563eb; margin-bottom:10px; font-weight:bold;">Traitement Prescrit</p>
+                    <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.traitement.replace(/\n/g, '<br>')}</p>
+                </div>
 
-    const opt = {
-        margin:       10,
-        filename:     `Consultation_${data.patient_nom}_${data.date_rdv}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+                ${data.notes ? `
+                <div style="margin-bottom:30px;">
+                    <p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:10px; font-weight:bold;">Notes additionnelles</p>
+                    <p style="font-size:13px; line-height:1.6; color:#475569; margin:0;">${data.notes.replace(/\n/g, '<br>')}</p>
+                </div>
+                ` : ''}
 
-    html2pdf().set(opt).from(element).save();
+                <div style="margin-top:40px; border-top:1px solid #e2e8f0; padding-top:20px; display:flex; justify-content:space-between; align-items:flex-end;">
+                    <div style="color:#94a3b8; font-size:10px; flex:1;">
+                        <p>Ce document est un compte-rendu médical officiel généré par GlobalHealth Connect.</p>
+                        <p>Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}</p>
+                        <p style="margin-top:5px; color:#2563eb; font-weight:bold;">Scan QR pour vérifier l'authenticité</p>
+                    </div>
+                    <div style="display:flex; gap:20px; align-items:flex-end;">
+                        <?php if ($signature): ?>
+                        <div style="text-align:center;">
+                            <p style="font-size:9px; color:#64748b; margin-bottom:5px; text-transform:uppercase; font-weight:bold;">Signature du Médecin</p>
+                            <img src="uploads/signatures/<?php echo $signature; ?>" style="height:60px; object-fit:contain;">
+                        </div>
+                        <?php endif; ?>
+                        <div style="text-align:right;">
+                            <img src="${qrImageUrl}" style="width:70px; height:70px; border:1px solid #e2e8f0; padding:5px; border-radius:8px;">
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const opt = {
+                margin:       10,
+                filename:     `Consultation_${data.patient_nom}_${data.date_rdv}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+    }
+
+    qrImg.crossOrigin = "Anonymous";
+    qrImg.onload = checkLoaded;
+    qrImg.onerror = checkLoaded; // On continue même si le QR échoue
+    qrImg.src = qrImageUrl;
+
+    <?php if ($signature): ?>
+    // Pour l'image locale, pas besoin de crossOrigin qui peut causer des bugs en local
+    sigImg.onload = checkLoaded;
+    sigImg.onerror = checkLoaded;
+    sigImg.src = "uploads/signatures/<?php echo $signature; ?>";
+    <?php endif; ?>
 }
 
 // --- Validation Formulaire ---
@@ -366,6 +420,32 @@ function showErr(f, m) {
     f.input.classList.add('is-invalid');
     f.err.textContent = m;
     f.err.style.display = 'block';
+}
+
+// --- Fonctions de Modification ---
+function prepareEdit(data) {
+    document.getElementById('formAction').value = 'edit';
+    document.getElementById('formId').value = data.id_consultation;
+    
+    document.getElementById('id_rdv').value = data.id_rdv;
+    document.getElementById('diagnostic').value = data.diagnostic;
+    document.getElementById('traitement').value = data.traitement;
+    document.getElementById('notes').value = data.notes || '';
+    
+    document.getElementById('editModeIndicator').style.display = 'block';
+    document.getElementById('submitBtn').textContent = 'Mettre à jour la Consultation';
+    document.getElementById('submitBtn').style.background = '#3b82f6';
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetForm() {
+    document.getElementById('consultationForm').reset();
+    document.getElementById('formAction').value = 'add';
+    document.getElementById('formId').value = '';
+    document.getElementById('editModeIndicator').style.display = 'none';
+    document.getElementById('submitBtn').textContent = 'Enregistrer la Consultation';
+    document.getElementById('submitBtn').style.background = 'var(--primary)';
 }
 </script>
 

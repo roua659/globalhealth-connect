@@ -84,6 +84,9 @@
     <a href="?controller=medecin&action=consultation" class="nav-item"><i class="fas fa-notes-medical"></i>Consultations</a>
     <a href="?controller=medecin&action=suivie" class="nav-item"><i class="fas fa-heart-pulse"></i>Patient Follow-ups</a>
 
+    <div class="nav-label">Settings</div>
+    <a href="?controller=medecin&action=profile" class="nav-item"><i class="fas fa-user-md"></i>Mon Profil</a>
+
     <a href="?controller=auth&action=logout" class="logout"><i class="fas fa-door-open"></i>Terminer Session</a>
 </aside>
 
@@ -108,6 +111,17 @@
         <div class="stat-card">
             <div class="stat-icon"><i class="fas fa-wave-square"></i></div>
             <div><div class="stat-val"><?php echo $nbSuivis; ?></div><div class="stat-lbl">Bilans de suivi</div></div>
+        </div>
+        <div class="stat-card" style="<?php echo $alertesCritiques > 0 ? 'border-color: #ef4444; background: #fffafb;' : ''; ?>">
+            <div class="stat-icon" style="<?php echo $alertesCritiques > 0 ? 'color: #ef4444; background: #fef2f2;' : ''; ?>">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <div class="stat-val" style="<?php echo $alertesCritiques > 0 ? 'color: #b91c1c;' : ''; ?>">
+                    <?php echo $alertesCritiques; ?>
+                </div>
+                <div class="stat-lbl">Alertes de santé</div>
+            </div>
         </div>
     </div>
 
