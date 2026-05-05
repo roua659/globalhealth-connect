@@ -419,6 +419,7 @@ $usersApiBase = gh_users_api_base();
             <ul class="sidebar-menu">
                 <li><a onclick="switchModule('dashboard');"><i class="fas fa-chart-line"></i> Dashboard</a></li>
                 <li><a onclick="switchModule('users');"><i class="fas fa-users"></i> Utilisateurs</a></li>
+                <li><a onclick="switchModule('validation');"><i class="fas fa-user-check"></i> Validation Médecins <span id="sidebarBadgeValidation" style="background:#e74c3c;color:white;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px;display:none;">0</span></a></li>
                 <li><a onclick="switchModule('forum');"><i class="fas fa-newspaper"></i> Publications</a></li>
                 <li><a onclick="switchModule('comments');"><i class="fas fa-comments"></i> Commentaires</a></li>
                 <li><a onclick="switchModule('reviews');"><i class="fas fa-star"></i> Avis Patients</a></li>
@@ -531,6 +532,50 @@ $usersApiBase = gh_users_api_base();
 </div>
 <button type="submit" class="btn btn-medical w-100 mt-3">Modifier</button></form></div></div></div></div>
 
+<!-- Modal Refus Médecin -->
+<div class="modal fade" id="modalRefusMedecin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-custom">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="fas fa-times-circle me-2" style="color:#e74c3c;"></i>Refuser ce médecin</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Le motif sera visible par le médecin pour qu'il puisse corriger son dossier.</p>
+                <div class="mb-3">
+                    <label class="fw-600 small">Motif de refus <span style="color:#e74c3c;">*</span></label>
+                    <textarea class="form-control form-control-custom mt-1" id="motifRefusInput" rows="4"
+                              placeholder="Ex : Documents illisibles, diplôme non reconnu, CIN expirée…"></textarea>
+                    <div class="text-danger small mt-1" id="motifRefusError" style="display:none;">Le motif est obligatoire.</div>
+                </div>
+                <div class="d-flex gap-2 justify-content-end">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button class="btn" style="background:#e74c3c;color:white;border-radius:20px;font-weight:600;"
+                            onclick="confirmerRefusMedecin()">
+                        <i class="fas fa-times me-1"></i> Confirmer le refus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Détails Médecin -->
+<div class="modal fade" id="modalDetailsMedecin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content modal-custom">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="fas fa-user-md me-2" style="color:var(--medical-blue);"></i>Détails du médecin</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsMedecinBody">
+                <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
+            </div>
+            <div class="modal-footer border-0" id="detailsMedecinFooter"></div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // ============================================
@@ -637,6 +682,7 @@ $usersApiBase = gh_users_api_base();
         const titles = {
             dashboard: 'Dashboard - Vue d\'ensemble',
             users: 'Gestion des Utilisateurs',
+            validation: 'Validation des Médecins',
             forum: 'Forum - Publications des Médecins',
             comments: 'Gestion des Commentaires',
             reviews: 'Avis Patients - Modération',
@@ -651,6 +697,7 @@ $usersApiBase = gh_users_api_base();
         const body = document.getElementById('moduleContent');
         if(module === 'dashboard') body.innerHTML = renderDashboard();
         else if(module === 'users') body.innerHTML = renderUsers();
+        else if(module === 'validation') { body.innerHTML = ''; renderValidation(); }
         else if(module === 'forum') body.innerHTML = renderForum();
         else if(module === 'comments') body.innerHTML = renderComments();
         else if(module === 'reviews') body.innerHTML = renderReviews();
@@ -2242,11 +2289,360 @@ $usersApiBase = gh_users_api_base();
         if(confirm('Annuler ce rendez-vous ?')){ appointmentsData = appointmentsData.filter(a => a.id !== id); saveAppointments(); showNotification('Rendez-vous annulé'); refreshModule(); } 
     }
     
+    // ==================== VALIDATION MÉDECINS ====================
+
+    // État du module validation
+    let validationData    = { en_attente: [], tous: [] };
+    let validationTab     = 'en_attente';
+    let currentMedecinId  = null;
+
+    const VALIDATION_BASE = (() => {
+        const u = new URL(USERS_API_BASE, window.location.href);
+        return u.href.replace(/api\/users.*$/, 'index.php?url=api/validation/');
+    })();
+
+    const DOC_LABELS = {
+        diplome:               '🎓 Diplôme',
+        cin:                   '🪪 CIN',
+        carte_professionnelle: '💳 Carte professionnelle',
+        certificat_exercice:   '📋 Certificat d\'exercice',
+    };
+
+    // ── Appels API validation ─────────────────────────────
+    async function valApiGet(path) {
+        const res = await fetch(VALIDATION_BASE + path, {
+            headers: { 'X-User-Role': 'admin', 'X-User-Id': '0' },
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Erreur API');
+        return data;
+    }
+
+    async function valApiPost(path, body) {
+        const res = await fetch(VALIDATION_BASE + path, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-Role': 'admin',
+                'X-User-Id': '0',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Erreur API');
+        return data;
+    }
+
+    // ── Charger les données et rendre le module ───────────
+    async function renderValidation() {
+        const body = document.getElementById('moduleContent');
+        body.innerHTML = `
+            <div class="data-card" style="padding:40px;text-align:center;">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3 text-muted">Chargement des médecins…</p>
+            </div>`;
+
+        try {
+            const [resAttente, resTous] = await Promise.all([
+                valApiGet('admin/en-attente'),
+                valApiGet('admin/medecins'),
+            ]);
+            validationData.en_attente = resAttente.data;
+            validationData.tous       = resTous.data;
+
+            // Badge sidebar
+            const badge = document.getElementById('sidebarBadgeValidation');
+            if (badge) {
+                badge.textContent = resAttente.count;
+                badge.style.display = resAttente.count > 0 ? 'inline' : 'none';
+            }
+
+            body.innerHTML = buildValidationHTML();
+            // Attacher les onglets
+            document.getElementById('valTabEnAttente')?.addEventListener('click', () => switchValTab('en_attente'));
+            document.getElementById('valTabTous')?.addEventListener('click',      () => switchValTab('tous'));
+        } catch (e) {
+            body.innerHTML = `<div class="data-card"><div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i>
+                <p>Erreur : ${escapeHtml(e.message)}</p>
+                <button class="btn-medical mt-3" onclick="renderValidation()"><i class="fas fa-redo me-1"></i>Réessayer</button>
+            </div></div>`;
+        }
+    }
+
+    function buildValidationHTML() {
+        const enAttente = validationData.en_attente;
+        const tous      = validationData.tous;
+
+        const kpiHtml = `
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#fff3e0;color:#f39c12;"><i class="fas fa-hourglass-half"></i></div>
+                    <div class="stat-number">${enAttente.length}</div>
+                    <div class="stat-label">En attente</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#e8f8f0;color:#27ae60;"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-number">${tous.filter(m => m.statut_validation === 'valide').length}</div>
+                    <div class="stat-label">Validés</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#fde8e8;color:#e74c3c;"><i class="fas fa-times-circle"></i></div>
+                    <div class="stat-number">${tous.filter(m => m.statut_validation === 'refuse').length}</div>
+                    <div class="stat-label">Refusés</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#e8f4ff;color:#2b7be4;"><i class="fas fa-user-md"></i></div>
+                    <div class="stat-number">${tous.length}</div>
+                    <div class="stat-label">Total médecins</div>
+                </div>
+            </div>`;
+
+        const tabsHtml = `
+            <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+                <button id="valTabEnAttente" class="btn-medical btn-sm${validationTab === 'en_attente' ? '' : ' btn-outline-medical'}"
+                        style="${validationTab === 'en_attente' ? '' : 'background:transparent;color:var(--medical-blue);border:2px solid var(--medical-blue);'}">
+                    ⏳ En attente
+                    <span style="background:#e74c3c;color:white;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px;">${enAttente.length}</span>
+                </button>
+                <button id="valTabTous" class="btn-sm${validationTab === 'tous' ? ' btn-medical' : ' btn-outline-medical'}"
+                        style="${validationTab === 'tous' ? 'background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));color:white;border:none;border-radius:30px;padding:7px 16px;font-weight:600;font-size:.8rem;' : 'background:transparent;color:var(--medical-blue);border:2px solid var(--medical-blue);border-radius:30px;padding:7px 16px;font-weight:600;font-size:.8rem;'}">
+                    📋 Tous les médecins
+                    <span style="background:var(--medical-blue);color:white;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px;">${tous.length}</span>
+                </button>
+            </div>`;
+
+        const tableHtml = buildValidationTable(validationData[validationTab]);
+
+        return kpiHtml + `<div class="data-card">${tabsHtml}${tableHtml}</div>`;
+    }
+
+    function buildValidationTable(data) {
+        if (!data || data.length === 0) {
+            return `<div class="empty-state">
+                <i class="fas fa-user-check"></i>
+                <p>${validationTab === 'en_attente' ? 'Aucun médecin en attente de validation' : 'Aucun médecin enregistré'}</p>
+            </div>`;
+        }
+
+        const rows = data.map(m => {
+            const statut = m.statut_validation;
+            const badgeCls = statut === 'valide' ? 'status-approved' : statut === 'refuse' ? 'status-reported' : 'status-pending';
+            const badgeTxt = statut === 'valide' ? '✅ Validé' : statut === 'refuse' ? '❌ Refusé' : '⏳ En attente';
+            const docs = parseInt(m.nb_documents || 0);
+
+            return `<tr>
+                <td><strong>${escapeHtml(m.nom)} ${escapeHtml(m.prenom)}</strong></td>
+                <td style="font-size:.82rem;">${escapeHtml(m.email)}</td>
+                <td>${escapeHtml(m.specialite || '—')}</td>
+                <td style="font-size:.82rem;">${formatValDate(m.date_inscription)}</td>
+                <td><span class="status-badge ${badgeCls}">${badgeTxt}</span></td>
+                <td>
+                    <span style="font-size:.82rem;color:${docs >= 4 ? '#27ae60' : '#e74c3c'};">
+                        <i class="fas fa-file-alt me-1"></i>${docs}/4
+                    </span>
+                </td>
+                <td style="white-space:nowrap;">
+                    <button class="icon-btn edit" onclick="voirDetailsMedecin(${m.id_user})" title="Voir détails">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    ${statut !== 'valide' ? `
+                    <button class="icon-btn approve" onclick="validerMedecinDirect(${m.id_user})" title="Valider">
+                        <i class="fas fa-check"></i>
+                    </button>` : ''}
+                    ${statut !== 'refuse' ? `
+                    <button class="icon-btn delete" onclick="ouvrirModalRefus(${m.id_user})" title="Refuser">
+                        <i class="fas fa-times"></i>
+                    </button>` : ''}
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `<div class="table-scroll">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Nom Prénom</th>
+                    <th>Email</th>
+                    <th>Spécialité</th>
+                    <th>Date inscription</th>
+                    <th>Statut</th>
+                    <th>Documents</th>
+                    <th>Actions</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+
+    function switchValTab(tab) {
+        validationTab = tab;
+        const body = document.getElementById('moduleContent');
+        if (body) body.innerHTML = buildValidationHTML();
+        document.getElementById('valTabEnAttente')?.addEventListener('click', () => switchValTab('en_attente'));
+        document.getElementById('valTabTous')?.addEventListener('click',      () => switchValTab('tous'));
+    }
+
+    // ── Voir détails ──────────────────────────────────────
+    async function voirDetailsMedecin(idMedecin) {
+        currentMedecinId = idMedecin;
+        const bodyEl   = document.getElementById('detailsMedecinBody');
+        const footerEl = document.getElementById('detailsMedecinFooter');
+        bodyEl.innerHTML   = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+        footerEl.innerHTML = '';
+        new bootstrap.Modal(document.getElementById('modalDetailsMedecin')).show();
+
+        try {
+            const res = await valApiGet(`admin/details?id_medecin=${idMedecin}`);
+            const m   = res.data;
+            const statut    = m.statut_validation;
+            const badgeCls  = statut === 'valide' ? 'status-approved' : statut === 'refuse' ? 'status-reported' : 'status-pending';
+            const badgeTxt  = statut === 'valide' ? '✅ Validé' : statut === 'refuse' ? '❌ Refusé' : '⏳ En attente';
+            const initials  = ((m.nom || '?')[0] + (m.prenom || '?')[0]).toUpperCase();
+
+            const docsHtml = (m.documents || []).length === 0
+                ? '<p class="text-muted small">Aucun document uploadé.</p>'
+                : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+                    ${(m.documents || []).map(d => `
+                    <div style="border:1.5px solid #e0e8f0;border-radius:12px;padding:14px;text-align:center;">
+                        <div style="font-size:1.8rem;margin-bottom:6px;">${(DOC_LABELS[d.type_document] || '📄').split(' ')[0]}</div>
+                        <div style="font-size:.75rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;margin-bottom:6px;">
+                            ${escapeHtml(DOC_LABELS[d.type_document] || d.type_document)}
+                        </div>
+                        <a href="/${escapeHtml(d.fichier_url)}" target="_blank"
+                           style="color:var(--medical-blue);font-size:.8rem;font-weight:600;text-decoration:none;">
+                            <i class="fas fa-eye me-1"></i>Voir le fichier
+                        </a>
+                        <div style="font-size:.7rem;color:#aaa;margin-top:4px;">${formatValDate(d.date_upload)}</div>
+                    </div>`).join('')}
+                </div>`;
+
+            bodyEl.innerHTML = `
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+                    <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));
+                                display:flex;align-items:center;justify-content:center;color:white;font-size:1.3rem;font-weight:700;flex-shrink:0;">
+                        ${initials}
+                    </div>
+                    <div>
+                        <h5 style="margin:0;font-weight:700;">Dr. ${escapeHtml(m.nom)} ${escapeHtml(m.prenom)}</h5>
+                        <p style="margin:2px 0;color:#6c7a8a;font-size:.85rem;">${escapeHtml(m.email)}</p>
+                        <span class="status-badge ${badgeCls}">${badgeTxt}</span>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                    <div><label style="font-size:.72rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;display:block;margin-bottom:2px;">Spécialité</label>
+                        <span style="font-size:.9rem;">${escapeHtml(m.specialite || '—')}</span></div>
+                    <div><label style="font-size:.72rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;display:block;margin-bottom:2px;">Sexe</label>
+                        <span style="font-size:.9rem;">${escapeHtml(m.sexe || '—')}</span></div>
+                    <div><label style="font-size:.72rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;display:block;margin-bottom:2px;">Date inscription</label>
+                        <span style="font-size:.9rem;">${formatValDate(m.date_inscription)}</span></div>
+                    <div><label style="font-size:.72rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;display:block;margin-bottom:2px;">Date validation</label>
+                        <span style="font-size:.9rem;">${formatValDate(m.date_validation)}</span></div>
+                    <div style="grid-column:1/-1;"><label style="font-size:.72rem;font-weight:700;color:#6c7a8a;text-transform:uppercase;display:block;margin-bottom:2px;">Adresse</label>
+                        <span style="font-size:.9rem;">${escapeHtml(m.adresse || '—')}</span></div>
+                    ${m.motif_refus ? `<div style="grid-column:1/-1;">
+                        <label style="font-size:.72rem;font-weight:700;color:#e74c3c;text-transform:uppercase;display:block;margin-bottom:2px;">Motif de refus</label>
+                        <div style="background:#fde8e8;border-radius:10px;padding:10px 14px;font-size:.88rem;color:#e74c3c;">
+                            ${escapeHtml(m.motif_refus)}
+                        </div>
+                    </div>` : ''}
+                </div>
+
+                <h6 style="font-size:.88rem;font-weight:700;margin-bottom:12px;">
+                    <i class="fas fa-file-alt me-2" style="color:var(--medical-blue);"></i>
+                    Documents (${(m.documents || []).length}/4)
+                </h6>
+                ${docsHtml}`;
+
+            // Footer avec boutons
+            let footerBtns = '';
+            if (statut !== 'valide') {
+                footerBtns += `<button class="btn-medical" onclick="validerMedecinDirect(${m.id_user}, true)">
+                    <i class="fas fa-check me-1"></i> ✅ Valider
+                </button>`;
+            }
+            if (statut !== 'refuse') {
+                footerBtns += `<button class="btn" style="background:#e74c3c;color:white;border-radius:30px;padding:9px 20px;font-weight:600;border:none;"
+                        onclick="ouvrirModalRefus(${m.id_user}, true)">
+                    <i class="fas fa-times me-1"></i> ❌ Refuser
+                </button>`;
+            }
+            footerEl.innerHTML = footerBtns + `<button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>`;
+
+        } catch (e) {
+            bodyEl.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#e74c3c;"></i><p>Erreur : ${escapeHtml(e.message)}</p></div>`;
+        }
+    }
+
+    // ── Valider ───────────────────────────────────────────
+    async function validerMedecinDirect(idMedecin, fromModal = false) {
+        if (!confirm('Valider ce médecin ? Il aura accès à toutes les fonctionnalités.')) return;
+        try {
+            await valApiPost('admin/valider', { id_medecin: idMedecin });
+            showNotification('✅ Médecin validé avec succès !');
+            if (fromModal) bootstrap.Modal.getInstance(document.getElementById('modalDetailsMedecin'))?.hide();
+            await renderValidation();
+        } catch (e) {
+            showNotification('Erreur : ' + e.message, true);
+        }
+    }
+
+    // ── Refuser ───────────────────────────────────────────
+    let _refusFromModal = false;
+
+    function ouvrirModalRefus(idMedecin, fromModal = false) {
+        currentMedecinId = idMedecin;
+        _refusFromModal  = fromModal;
+        document.getElementById('motifRefusInput').value = '';
+        document.getElementById('motifRefusError').style.display = 'none';
+        new bootstrap.Modal(document.getElementById('modalRefusMedecin')).show();
+    }
+
+    async function confirmerRefusMedecin() {
+        const motif = document.getElementById('motifRefusInput').value.trim();
+        if (!motif) {
+            document.getElementById('motifRefusError').style.display = 'block';
+            return;
+        }
+        document.getElementById('motifRefusError').style.display = 'none';
+        try {
+            await valApiPost('admin/refuser', { id_medecin: currentMedecinId, motif });
+            bootstrap.Modal.getInstance(document.getElementById('modalRefusMedecin'))?.hide();
+            if (_refusFromModal) bootstrap.Modal.getInstance(document.getElementById('modalDetailsMedecin'))?.hide();
+            showNotification('❌ Médecin refusé.');
+            await renderValidation();
+        } catch (e) {
+            showNotification('Erreur : ' + e.message, true);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────
+    function formatValDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('fr-FR', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    }
+
+    // ── Charger le badge au démarrage ─────────────────────
+    async function loadValidationBadge() {
+        try {
+            const res = await valApiGet('admin/en-attente');
+            const badge = document.getElementById('sidebarBadgeValidation');
+            if (badge) {
+                badge.textContent = res.count;
+                badge.style.display = res.count > 0 ? 'inline' : 'none';
+            }
+        } catch (_) { /* silencieux */ }
+    }
+
     // ==================== INIT ====================
     async function initBackoffice() {
         await loadAllData();
         syncWithFrontoffice();
         switchModule('dashboard');
+        loadValidationBadge(); // badge en arrière-plan
     }
     
     initBackoffice();

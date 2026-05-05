@@ -38,6 +38,15 @@ $routes = [
     'api/users/search'     => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'search'],
     'api/users/stats'      => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'stats'],
     'api/users/export-pdf' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'exportPdf'],
+
+    // ── Validation médecins ──────────────────────────────────
+    'api/validation/statut'              => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'statut'],
+    'api/validation/upload'              => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'upload'],
+    'api/validation/admin/en-attente'    => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminEnAttente'],
+    'api/validation/admin/medecins'      => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminTousMedecins'],
+    'api/validation/admin/details'       => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminDetails'],
+    'api/validation/admin/valider'       => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminValider'],
+    'api/validation/admin/refuser'       => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminRefuser'],
 ];
 
 // Récupérer l'URL

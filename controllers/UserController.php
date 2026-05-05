@@ -46,6 +46,9 @@ class UserController
             'adresse' => $user['adresse'] ?? null,
             'specialite' => $user['specialite'] ?? null,
             'role' => $user['role'] ?? 'patient',
+            // Champs validation médecin (null pour les non-médecins)
+            'statut_validation' => $user['statut_validation'] ?? null,
+            'motif_refus'       => $user['motif_refus']       ?? null,
         ];
     }
 

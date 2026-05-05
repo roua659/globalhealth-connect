@@ -483,6 +483,66 @@ $usersApiBase = gh_users_api_base();
             .hero-title { font-size: 2rem; }
             .chatbot-window { width: 320px; right: -50px; }
         }
+
+        /* ── Validation médecin ── */
+        .val-statut-card {
+            border-radius: 16px; padding: 20px 22px; margin-bottom: 20px;
+            display: flex; align-items: flex-start; gap: 16px;
+        }
+        .val-statut-card.en_attente { background: #fff8e1; border-left: 5px solid #f39c12; }
+        .val-statut-card.valide     { background: #e8f8f0; border-left: 5px solid #27ae60; }
+        .val-statut-card.refuse     { background: #fde8e8; border-left: 5px solid #e74c3c; }
+        .val-statut-icon { font-size: 2rem; flex-shrink: 0; }
+        .val-statut-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+        .val-statut-desc  { font-size: 0.85rem; line-height: 1.6; color: #555; }
+        .val-motif { background: rgba(231,76,60,.08); border: 1px solid rgba(231,76,60,.25);
+            border-radius: 10px; padding: 10px 14px; margin-top: 10px;
+            font-size: 0.85rem; color: #e74c3c; }
+        .val-doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media(max-width:500px){ .val-doc-grid { grid-template-columns: 1fr; } }
+        .val-doc-item {
+            border: 2px dashed #d0dce8; border-radius: 12px; padding: 14px;
+            background: #fafbfc; transition: all .2s; position: relative;
+        }
+        .val-doc-item.uploaded { border-color: #27ae60; background: #f0fdf6; }
+        .val-doc-item label { font-size: .72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .04em; color: #6c7a8a; display: block; margin-bottom: 8px; }
+        .val-doc-icon { font-size: 1.6rem; display: block; margin-bottom: 6px; }
+        .val-doc-status { position: absolute; top: 10px; right: 10px; font-size: .68rem;
+            font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .val-doc-status.ok   { background: #e8f8f0; color: #27ae60; }
+        .val-doc-status.wait { background: #fff3e0; color: #f39c12; }
+        .val-doc-status.none { background: #f0f0f0; color: #999; }
+        .val-file-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: var(--medical-blue); color: white; border: none;
+            border-radius: 8px; padding: 6px 12px; font-size: .78rem;
+            font-weight: 600; cursor: pointer; transition: all .2s; position: relative;
+        }
+        .val-file-btn:hover { background: #1a5fc8; }
+        .val-file-btn input[type=file] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+        }
+        .val-doc-name { font-size: .75rem; color: #555; margin-top: 5px; word-break: break-all; }
+        .val-progress { height: 3px; background: #e0e0e0; border-radius: 3px;
+            margin-top: 6px; overflow: hidden; }
+        .val-progress-fill { height: 100%;
+            background: linear-gradient(90deg, var(--medical-blue), var(--medical-green));
+            width: 0; transition: width .4s; }
+        .val-send-btn {
+            background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+            color: white; border: none; border-radius: 30px; padding: 12px 32px;
+            font-size: .95rem; font-weight: 700; cursor: pointer; transition: all .3s;
+            display: inline-flex; align-items: center; gap: 8px; width: 100%;
+            justify-content: center; margin-top: 16px;
+        }
+        .val-send-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(43,123,228,.35); }
+        .val-send-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+        .val-validated-banner {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white; border-radius: 16px; padding: 28px; text-align: center;
+        }
+        .val-validated-banner i { font-size: 2.5rem; display: block; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -513,6 +573,7 @@ $usersApiBase = gh_users_api_base();
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><a class="dropdown-item" href="#" onclick="showProfile()"><i class="fas fa-user me-2"></i>Mon profil</a></li>
+                        <li><a class="dropdown-item" href="#" id="menuValidationMedecin" style="display:none;" onclick="showValidationMedecin()"><i class="fas fa-user-check me-2"></i>Validation de compte <span id="navValidationBadge" style="background:#e74c3c;color:white;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px;"></span></a></li>
                         <li><a class="dropdown-item" href="#" onclick="showAppointments()"><i class="fas fa-calendar me-2"></i>Mes RDV</a></li>
                         <li><a class="dropdown-item" href="#" onclick="showMedicalFolder()"><i class="fas fa-folder-open me-2"></i>Mon dossier médical</a></li>
                         <li><hr class="dropdown-divider"></li>
@@ -1137,6 +1198,32 @@ $usersApiBase = gh_users_api_base();
 
 <div class="notification-toast" id="notificationToast"></div>
 
+<!-- ===== MODAL VALIDATION MÉDECIN ===== -->
+<div class="modal fade" id="validationMedecinModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:24px;border:none;">
+            <div class="modal-header border-0" style="background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));border-radius:24px 24px 0 0;padding:20px 24px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+                        <i class="fas fa-user-check" style="color:white;"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0" style="color:white;font-weight:700;">Validation de votre compte médecin</h5>
+                        <small style="color:rgba(255,255,255,.8);">Uploadez vos documents pour activer votre accès</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" id="btnCloseValidation" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:24px;" id="validationModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted small">Chargement…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // ============================================
@@ -1460,6 +1547,11 @@ $usersApiBase = gh_users_api_base();
             updateUIForConnectedPatient();
             loadMedicalRecords();
             loadFollowups();
+            // Si médecin → ouvrir immédiatement le module validation
+            if (role === 'medecin') {
+                currentPatient.role = 'medecin';
+                applyRoleUI('medecin');
+            }
             showNotification(`Bienvenue ${newUser.name} ! Vous êtes maintenant connecté.`);
         } catch (error) {
             fErr('signupEmail', error.message);
@@ -2446,6 +2538,338 @@ $usersApiBase = gh_users_api_base();
         const tailleRow = document.getElementById('profileTailleRow');
         if (poidsRow)  poidsRow.style.display  = role === 'medecin' ? 'none' : '';
         if (tailleRow) tailleRow.style.display = role === 'medecin' ? 'none' : '';
+
+        // Afficher/masquer le lien "Validation de compte" dans le menu
+        const menuVal = document.getElementById('menuValidationMedecin');
+        if (menuVal) menuVal.style.display = role === 'medecin' ? 'block' : 'none';
+
+        // Si médecin → charger son statut et afficher le modal si non validé
+        if (role === 'medecin' && currentPatient?.id) {
+            loadMedecinValidationStatut();
+        }
+    }
+
+    // ============================================
+    // MODULE VALIDATION MÉDECIN
+    // ============================================
+
+    // État local
+    let _valStatut    = null;   // données statut depuis API
+    let _valUploaded  = {};     // type → File sélectionné
+    let _valExisting  = {};     // type → doc existant depuis API
+    let _valSending   = false;
+
+    const VAL_DOCS = [
+        { type: 'diplome',               label: 'Diplôme de médecine',    icon: '🎓' },
+        { type: 'cin',                   label: 'Carte d\'identité (CIN)', icon: '🪪' },
+        { type: 'carte_professionnelle', label: 'Carte professionnelle',   icon: '💳' },
+        { type: 'certificat_exercice',   label: 'Certificat d\'exercice',  icon: '📋' },
+    ];
+
+    function buildValApiUrl(path) {
+        // USERS_API_BASE = "/globalhealth/index.php?url=api/users"
+        // On remplace "api/users" par "api/validation/<path>"
+        // Les paramètres supplémentaires (ex: id_medecin=X) doivent utiliser & pas ?
+        const base = USERS_API_BASE.replace(/api\/users.*$/, 'api/validation/');
+        // Si path contient un ?, on le remplace par & car l'URL a déjà un ?
+        const safePath = path.replace('?', '&');
+        return base + safePath;
+    }
+
+    async function valFetch(path, opts = {}) {
+        const url = buildValApiUrl(path);
+        const res = await fetch(url, {
+            ...opts,
+            headers: {
+                ...(opts.headers || {}),
+                'X-User-Id':   String(currentPatient?.id ?? 0),
+                'X-User-Role': currentPatient?.role ?? '',
+            },
+        });
+        let data;
+        try { data = await res.json(); } catch(e) { throw new Error('Réponse invalide du serveur'); }
+        if (!data.success) throw new Error(data.message || 'Erreur API validation');
+        return data;
+    }
+                'X-User-Role': currentPatient?.role ?? '',
+            },
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Erreur API');
+        return data;
+    }
+
+    // ── Charger le statut depuis l'API ────────────────────
+    async function loadMedecinValidationStatut() {
+        if (!currentPatient?.id) return;
+        try {
+            const res = await valFetch(`statut?id_medecin=${currentPatient.id}`);
+            _valStatut   = res.data;
+            _valExisting = {};
+            (res.data.documents || []).forEach(d => { _valExisting[d.type_document] = d; });
+
+            // Mettre à jour le badge navbar
+            const badge = document.getElementById('navValidationBadge');
+            if (badge) {
+                if (_valStatut.statut_validation === 'en_attente') {
+                    badge.textContent = '⏳';
+                    badge.style.display = 'inline';
+                } else if (_valStatut.statut_validation === 'refuse') {
+                    badge.textContent = '❌';
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+
+            // Si le modal est ouvert, rendre son contenu
+            const modalEl = document.getElementById('validationMedecinModal');
+            if (modalEl && modalEl.classList.contains('show')) {
+                renderValidationModal();
+            }
+
+            // Ouvrir automatiquement le modal si non validé
+            if (_valStatut.statut_validation !== 'valide') {
+                showValidationMedecin();
+            }
+        } catch (e) {
+            console.warn('Validation statut:', e.message);
+            // Afficher l'erreur dans le modal s'il est ouvert
+            const body = document.getElementById('validationModalBody');
+            if (body) {
+                body.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-2x" style="color:#e74c3c;"></i>
+                        <p class="mt-3 text-muted">Impossible de charger le statut.<br><small>${_escHtml(e.message)}</small></p>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="loadMedecinValidationStatut()">
+                            <i class="fas fa-redo me-1"></i>Réessayer
+                        </button>
+                    </div>`;
+            }
+        }
+    }
+
+    // ── Ouvrir le modal ───────────────────────────────────
+    function showValidationMedecin() {
+        const modalEl = document.getElementById('validationMedecinModal');
+        const instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        instance.show();
+        // Si on a déjà le statut, rendre directement ; sinon charger d'abord
+        if (_valStatut) {
+            renderValidationModal();
+        } else {
+            document.getElementById('validationModalBody').innerHTML =
+                '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted small">Chargement…</p></div>';
+            loadMedecinValidationStatut();
+        }
+    }
+
+    // ── Rendre le contenu du modal ────────────────────────
+    function renderValidationModal() {
+        const body = document.getElementById('validationModalBody');
+        if (!body) return;
+        if (!_valStatut) return; // ne rien faire si pas encore chargé
+
+        const statut = _valStatut.statut_validation;
+
+        // ── Compte validé ──────────────────────────────────
+        if (statut === 'valide') {
+            body.innerHTML = `
+                <div class="val-validated-banner">
+                    <i class="fas fa-check-circle"></i>
+                    <h5 style="font-weight:800;margin-bottom:6px;">Compte validé ✅</h5>
+                    <p style="opacity:.9;font-size:.9rem;">
+                        Votre compte médecin a été validé le ${_fmtDate(_valStatut.date_validation)}.<br>
+                        Vous avez accès à toutes les fonctionnalités de la plateforme.
+                    </p>
+                </div>`;
+            // Masquer le bouton fermer (le médecin peut fermer librement)
+            document.getElementById('btnCloseValidation').style.display = 'block';
+            return;
+        }
+
+        // ── Statut card ────────────────────────────────────
+        const statuts = {
+            en_attente: { icon: '⏳', title: 'Compte en cours de vérification',
+                desc: 'Votre dossier est en cours d\'examen par notre équipe. Vous serez notifié dès que votre compte sera validé.' },
+            refuse:     { icon: '❌', title: 'Compte refusé',
+                desc: 'Votre dossier a été refusé. Veuillez corriger les problèmes indiqués et re-soumettre vos documents.' },
+        };
+        const cfg = statuts[statut] || statuts['en_attente'];
+
+        const statutHtml = `
+            <div class="val-statut-card ${statut}">
+                <div class="val-statut-icon">${cfg.icon}</div>
+                <div style="flex:1;">
+                    <div class="val-statut-title">${cfg.title}</div>
+                    <div class="val-statut-desc">${cfg.desc}</div>
+                    ${statut === 'refuse' && _valStatut.motif_refus
+                        ? `<div class="val-motif"><strong>Motif :</strong> ${_escHtml(_valStatut.motif_refus)}</div>`
+                        : ''}
+                    <div style="margin-top:8px;font-size:.78rem;color:#6c7a8a;">
+                        Inscrit le ${_fmtDate(_valStatut.date_inscription)}
+                    </div>
+                </div>
+            </div>`;
+
+        // ── Grille documents ───────────────────────────────
+        const docsHtml = VAL_DOCS.map(cfg => {
+            const existing = _valExisting[cfg.type];
+            const uploaded = _valUploaded[cfg.type];
+            let statusHtml = '', nameHtml = '';
+
+            if (uploaded) {
+                statusHtml = `<span class="val-doc-status ok">✓ Prêt</span>`;
+                nameHtml   = `<div class="val-doc-name">📎 ${_escHtml(uploaded.name)}</div>`;
+            } else if (existing) {
+                statusHtml = `<span class="val-doc-status wait">Envoyé</span>`;
+                nameHtml   = `<div class="val-doc-name">
+                    <a href="/${_escHtml(existing.fichier_url)}" target="_blank" style="color:var(--medical-blue);font-size:.78rem;">
+                        <i class="fas fa-eye me-1"></i>Voir le fichier
+                    </a></div>`;
+            } else {
+                statusHtml = `<span class="val-doc-status none">Manquant</span>`;
+            }
+
+            return `
+            <div class="val-doc-item ${uploaded ? 'uploaded' : ''}" id="valDocItem_${cfg.type}">
+                ${statusHtml}
+                <span class="val-doc-icon">${cfg.icon}</span>
+                <label>${cfg.label}</label>
+                <div class="val-file-btn">
+                    <i class="fas fa-upload"></i>
+                    ${uploaded || existing ? 'Remplacer' : 'Choisir'}
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                           onchange="valHandleFile(this,'${cfg.type}')">
+                </div>
+                ${nameHtml}
+                <div class="val-progress" id="valProg_${cfg.type}" style="display:none;">
+                    <div class="val-progress-fill" id="valProgFill_${cfg.type}"></div>
+                </div>
+            </div>`;
+        }).join('');
+
+        // ── Bouton envoyer ─────────────────────────────────
+        const allTypes  = VAL_DOCS.map(c => c.type);
+        const allReady  = allTypes.every(t => _valUploaded[t] || _valExisting[t]);
+        const hasNew    = allTypes.some(t => _valUploaded[t]);
+        const btnLabel  = statut === 'refuse' ? 'Mettre à jour mes documents' : 'Envoyer les documents';
+        const btnDisabled = (!allReady || !hasNew || _valSending) ? 'disabled' : '';
+        let sendMsg = '';
+        if (!allReady) {
+            const missing = allTypes.filter(t => !_valUploaded[t] && !_valExisting[t]).length;
+            sendMsg = `<p style="font-size:.78rem;color:#e74c3c;margin-top:6px;">${missing} document(s) manquant(s)</p>`;
+        } else if (!hasNew) {
+            sendMsg = `<p style="font-size:.78rem;color:#6c7a8a;margin-top:6px;">Tous les documents ont déjà été envoyés.</p>`;
+        }
+
+        body.innerHTML = `
+            ${statutHtml}
+            <h6 style="font-size:.88rem;font-weight:700;margin-bottom:14px;">
+                <i class="fas fa-cloud-upload-alt me-2" style="color:var(--medical-blue);"></i>
+                Documents requis <small style="font-weight:400;color:#6c7a8a;">(PDF, JPG, PNG — max 5 MB)</small>
+            </h6>
+            <div class="val-doc-grid">${docsHtml}</div>
+            <button class="val-send-btn" id="valSendBtn" onclick="valEnvoyer()" ${btnDisabled}>
+                <i class="fas fa-paper-plane"></i> ${btnLabel}
+            </button>
+            ${sendMsg}`;
+
+        // Bloquer la fermeture si non validé et aucun doc envoyé
+        const hasAnyDoc = allTypes.some(t => _valExisting[t]);
+        document.getElementById('btnCloseValidation').style.display = hasAnyDoc ? 'block' : 'none';
+    }
+
+    // ── Sélection d'un fichier ────────────────────────────
+    function valHandleFile(input, type) {
+        const file = input.files[0];
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['pdf','jpg','jpeg','png'].includes(ext)) {
+            showNotification('Format non autorisé. Utilisez PDF, JPG ou PNG.', true); return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showNotification('Fichier trop volumineux (max 5 MB).', true); return;
+        }
+        _valUploaded[type] = file;
+        renderValidationModal();
+    }
+
+    // ── Envoyer les documents ─────────────────────────────
+    async function valEnvoyer() {
+        if (_valSending) return;
+        _valSending = true;
+        const btn = document.getElementById('valSendBtn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours…'; }
+
+        const newDocs = Object.entries(_valUploaded).filter(([, f]) => f !== null);
+        let success = 0;
+
+        for (const [type, file] of newDocs) {
+            const prog     = document.getElementById(`valProg_${type}`);
+            const progFill = document.getElementById(`valProgFill_${type}`);
+            if (prog) prog.style.display = 'block';
+
+            try {
+                const fd = new FormData();
+                fd.append('id_medecin',    String(currentPatient.id));
+                fd.append('type_document', type);
+                fd.append('fichier',       file);
+
+                // Simuler progression
+                let pct = 0;
+                const iv = setInterval(() => {
+                    pct = Math.min(pct + 20, 85);
+                    if (progFill) progFill.style.width = pct + '%';
+                }, 120);
+
+                const res = await fetch(buildValApiUrl('upload'), {
+                    method: 'POST',
+                    headers: { 'X-User-Id': String(currentPatient.id), 'X-User-Role': 'medecin' },
+                    body: fd,
+                });
+                clearInterval(iv);
+                if (progFill) progFill.style.width = '100%';
+
+                const data = await res.json();
+                if (data.success) {
+                    success++;
+                    _valExisting[type] = { type_document: type, fichier_url: data.fichier_url };
+                    delete _valUploaded[type];
+                } else {
+                    showNotification(`Erreur ${type} : ${data.message}`, true);
+                }
+            } catch (e) {
+                showNotification(`Erreur réseau : ${e.message}`, true);
+            }
+        }
+
+        _valSending = false;
+        if (success > 0) {
+            showNotification(`✅ ${success} document(s) envoyé(s) avec succès !`);
+            // Recharger le statut depuis l'API
+            try {
+                const res = await valFetch(`statut?id_medecin=${currentPatient.id}`);
+                _valStatut   = res.data;
+                _valExisting = {};
+                (res.data.documents || []).forEach(d => { _valExisting[d.type_document] = d; });
+            } catch (_) {}
+        }
+        renderValidationModal();
+    }
+
+    // ── Helpers ───────────────────────────────────────────
+    function _fmtDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('fr-FR', {
+            day: '2-digit', month: 'long', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    }
+    function _escHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/[&<>"']/g, c =>
+            ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
