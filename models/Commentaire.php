@@ -9,7 +9,24 @@ require_once __DIR__ . '/Model.php';
  */
 class Commentaire extends Model {
     protected $table = 'commentaire';
-    protected $fillable = ['id_commentaire', 'contenu', 'date_publication', 'id_publication', 'id_user', 'statut', 'note', 'signalements'];
+    protected $fillable = [
+        'id_commentaire',
+        'contenu',
+        'date_publication',
+        'id_publication',
+        'id_user',
+        'statut',
+        'note',
+        'signalements',
+        'moderation_status',
+        'toxicity_score',
+        'sensitive_score',
+        'medical_risk_score',
+        'moderation_reason',
+        'moderation_source',
+        'flagged_at',
+        'reviewed_at',
+    ];
 
     // ==================== GETTERS ====================
 
@@ -137,10 +154,19 @@ class Commentaire extends Model {
     }
 
     /**
-     * Set comment status (pending, approved, rejected)
+     * Set comment status.
      */
     public function setStatut($statut) {
-        $validStatuses = ['pending', 'approved', 'rejected'];
+        $statusMap = [
+            'pending' => 'en_attente',
+            'approved' => 'publie',
+            'rejected' => 'supprime',
+            'en_attente' => 'en_attente',
+            'publie' => 'publie',
+            'supprime' => 'supprime',
+        ];
+        $statut = $statusMap[$statut] ?? $statut;
+        $validStatuses = ['en_attente', 'publie', 'supprime'];
         if (!in_array($statut, $validStatuses)) {
             throw new Exception('Invalid status. Must be: ' . implode(', ', $validStatuses));
         }
@@ -196,7 +222,7 @@ class Commentaire extends Model {
     public function findByPublication($id_publication, $limit = 100, $offset = 0) {
         try {
             $query = "SELECT c.*, u.nom, u.prenom, u.email FROM {$this->table} c 
-                      JOIN utilisateur u ON c.id_user = u.id 
+                      JOIN utilisateur u ON c.id_user = u.id_user 
                       WHERE c.id_publication = :id_publication 
                       ORDER BY c.date_publication DESC 
                       LIMIT :limit OFFSET :offset";
@@ -217,8 +243,8 @@ class Commentaire extends Model {
     public function findApprovedByPublication($id_publication, $limit = 100, $offset = 0) {
         try {
             $query = "SELECT c.*, u.nom, u.prenom FROM {$this->table} c 
-                      JOIN utilisateur u ON c.id_user = u.id 
-                      WHERE c.id_publication = :id_publication AND c.statut = 'approved'
+                      JOIN utilisateur u ON c.id_user = u.id_user 
+                      WHERE c.id_publication = :id_publication AND c.statut = 'publie'
                       ORDER BY c.note DESC, c.date_publication DESC 
                       LIMIT :limit OFFSET :offset";
             $stmt = $this->pdo->prepare($query);
@@ -256,9 +282,9 @@ class Commentaire extends Model {
     public function findPending($limit = 50, $offset = 0) {
         try {
             $query = "SELECT c.*, u.nom, u.prenom, p.contenu as publication_contenu FROM {$this->table} c 
-                      JOIN utilisateur u ON c.id_user = u.id 
+                      JOIN utilisateur u ON c.id_user = u.id_user 
                       JOIN publication p ON c.id_publication = p.id_publication
-                      WHERE c.statut = 'pending' 
+                      WHERE c.statut = 'en_attente' 
                       ORDER BY c.date_publication ASC 
                       LIMIT :limit OFFSET :offset";
             $stmt = $this->pdo->prepare($query);
@@ -309,14 +335,14 @@ class Commentaire extends Model {
      * Approve comment
      */
     public function approve() {
-        return $this->setStatut('approved');
+        return $this->setStatut('publie');
     }
 
     /**
      * Reject comment
      */
     public function reject() {
-        return $this->setStatut('rejected');
+        return $this->setStatut('supprime');
     }
 
     /**
@@ -329,7 +355,7 @@ class Commentaire extends Model {
                 return null;
             }
             $query = "SELECT c.*, u.nom, u.prenom, u.email FROM {$this->table} c 
-                      JOIN utilisateur u ON c.id_user = u.id 
+                      JOIN utilisateur u ON c.id_user = u.id_user 
                       WHERE c.id_commentaire = :id";
             $stmt = $this->pdo->prepare($query);
             $stmt->execute(['id' => $id]);

@@ -32,6 +32,9 @@ switch ($action) {
     case 'search':
         $controller->search();
         break;
+    case 'improve':
+        $controller->improve();
+        break;
     case 'approved-comments':
         $controller->approvedComments();
         break;

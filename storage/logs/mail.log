@@ -1,0 +1,109 @@
+[2026-05-05 00:17:43] FAILED to=youssef@gmail.com subject=Nouvel avis patient - GlobalHealth Connect
+Bonjour Youssef Ben Hamouda,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Test Patient
+Note: 5/5
+Commentaire:
+Avis de test automatique pour verifier l envoi mail.
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:25:35] FAILED to=youssef@gmail.com subject=Nouvel avis patient - GlobalHealth Connect error=535-5.7.8 Username and Password not accepted. For more information, go to
+535 5.7.8  https://support.google.com/mail/?p=BadCredentials 5b1f17b1804b1-48a8ebb3dc1sm320404965e9.14 - gsmtp
+Bonjour Youssef Ben Hamouda,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Test Patient
+Note: 5/5
+Commentaire:
+Avis de test automatique pour verifier SMTP Gmail.
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:33:03] FAILED to=marwenb447@gmail.com subject=Nouvel avis patient - GlobalHealth Connect error=535-5.7.8 Username and Password not accepted. For more information, go to
+535 5.7.8  https://support.google.com/mail/?p=BadCredentials 5b1f17b1804b1-48a8ebb3dc1sm320781755e9.14 - gsmtp
+Bonjour Patient yassmine,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Dupont Jean
+Note: 5/5
+Commentaire:
+tres tres bien
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:33:24] FAILED to=marwenb447@gmail.com subject=Nouvel avis patient - GlobalHealth Connect error=535-5.7.8 Username and Password not accepted. For more information, go to
+535 5.7.8  https://support.google.com/mail/?p=BadCredentials ffacd0b85a97d-45028b2ff91sm474164f8f.14 - gsmtp
+Bonjour Patient yassmine,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Dupont Jean
+Note: 4/5
+Commentaire:
+dfowdfwf wfubswf
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:34:58] SENT to=marwenb447@gmail.com subject=Nouvel avis patient - GlobalHealth Connect
+Bonjour Patient yassmine,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Dupont Jean
+Note: 5/5
+Commentaire:
+cdljcoscs;ouhdv
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:44:27] SENT to=marwenb447@gmail.com subject=Nouvel avis patient - GlobalHealth Connect
+Bonjour Patient yassmine,
+
+Un patient vient de publier un nouvel avis sur GlobalHealth Connect.
+
+Patient: Dupont Jean
+Note: 4/5
+Commentaire:
+tres ter sg s
+
+Cet avis est en attente de moderation dans le backoffice.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:47:48] SENT to=jean.dupont@example.com subject=Notification GlobalHealth Connect
+Bonjour Jean Dupont,
+
+Nous esperons que votre consultation s'est bien passee. Merci de donner votre avis.
+
+Cordialement,
+GlobalHealth Connect
+---
+[2026-05-05 00:51:46] SENT to=ntrprnrvision@gmail.com subject=Notification GlobalHealth Connect
+Bonjour ben hamouda mourad,
+
+📝 Nous espérons que votre consultation s'est bien passée ! N'oubliez pas de donner votre avis et de noter votre médecin sur 5 étoiles. 🌟
+
+Cordialement,
+GlobalHealth Connect
+---

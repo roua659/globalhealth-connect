@@ -113,9 +113,6 @@ class Publication extends Model {
      * Set image URL
      */
     public function setUrlImage($url) {
-        if ($url && !filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new Exception('Invalid image URL format');
-        }
         return $this->setAttribute('url_image', $url);
     }
 
@@ -199,7 +196,7 @@ class Publication extends Model {
                 return [];
             }
             $query = "SELECT c.*, u.nom, u.prenom FROM commentaire c 
-                      JOIN utilisateur u ON c.id_user = u.id 
+                      JOIN utilisateur u ON c.id_user = u.id_user
                       WHERE c.id_publication = :id_publication 
                       ORDER BY c.date_publication DESC";
             $stmt = $this->pdo->prepare($query);
@@ -220,7 +217,7 @@ class Publication extends Model {
                 return [];
             }
             $query = "SELECT c.*, u.nom, u.prenom FROM commentaire c 
-                      JOIN utilisateur u ON c.id_user = u.id 
+                      JOIN utilisateur u ON c.id_user = u.id_user
                       WHERE c.id_publication = :id_publication AND c.statut = 'approved'
                       ORDER BY c.note DESC, c.date_publication DESC";
             $stmt = $this->pdo->prepare($query);

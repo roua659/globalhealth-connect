@@ -1,40 +1,7 @@
 <?php
-<<<<<<< HEAD
-class config {
-    private static $pdo;
-
-    public static function getConnexion() {
-        if (!isset(self::$pdo)) {
-            $servername = "localhost";
-            $username = "root";
-            $password = "";
-            $dbname = "medicalapp";
-
-            try {
-                self::$pdo = new PDO(
-                    "mysql:host=$servername;dbname=$dbname;charset=utf8mb4",
-                    $username,
-                    $password,
-                    [
-                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-                    ]
-                );
-
-            } catch (PDOException $e) {
-                die(json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]));
-            }
-        }
-        return self::$pdo;
-    }
-}
-
-config::getConnexion();
-?>
-=======
 declare(strict_types=1);
 
-class Database
+final class Database
 {
     private static ?PDO $connection = null;
 
@@ -45,7 +12,7 @@ class Database
         }
 
         $host = 'localhost';
-        $dbName = 'globalhealth';
+        $dbName = 'dataaa';
         $username = 'root';
         $password = '';
         $charset = 'utf8mb4';
@@ -61,4 +28,11 @@ class Database
         return self::$connection;
     }
 }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
+
+class config
+{
+    public static function getConnexion(): PDO
+    {
+        return Database::getConnection();
+    }
+}

@@ -1,29 +1,32 @@
 <?php
-<<<<<<< HEAD
+declare(strict_types=1);
+require_once __DIR__ . '/../../../config/paths.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../models/Publication.php';
+$usersApiBase = gh_users_api_base();
 
-// Fetch only approved publications for frontoffice
 $publications = [];
 try {
     $pdo = config::getConnexion();
     try {
-        $stmt = $pdo->prepare("SELECT * FROM publication WHERE statut = 'approved' ORDER BY date_publication DESC LIMIT 20");
+        $stmt = $pdo->prepare("
+            SELECT p.*, CONCAT(COALESCE(u.nom, ''), ' ', COALESCE(u.prenom, '')) AS doctor_name, u.id_user AS owner_user_id
+            FROM publication p
+            LEFT JOIN medecin m ON m.id_medecin = p.id_medecin
+            LEFT JOIN utilisateur u ON u.id_user = m.id_user
+            WHERE p.statut = 'approved'
+            ORDER BY p.date_publication DESC
+            LIMIT 20
+        ");
         $stmt->execute();
         $publications = $stmt->fetchAll();
     } catch (Exception $e) {
-        // Fallback if the statut column does not exist yet
-        $pub = new Publication();
-        $publications = $pub->getAll(20, 0);
+        $publicationModel = new Publication();
+        $publications = $publicationModel->getAll(20, 0);
     }
 } catch (Exception $e) {
     $publications = [];
 }
-=======
-declare(strict_types=1);
-require_once __DIR__ . '/../../../config/paths.php';
-$usersApiBase = gh_users_api_base();
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -204,6 +207,16 @@ $usersApiBase = gh_users_api_base();
             padding: 15px;
             margin-bottom: 12px;
         }
+        .forum-owner-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .forum-owner-actions .btn {
+            padding: 4px 10px;
+            font-size: 0.82rem;
+            border-radius: 999px;
+        }
         .doctor-card {
             background: white;
             border-radius: 24px;
@@ -227,8 +240,6 @@ $usersApiBase = gh_users_api_base();
             font-size: 3rem;
             color: white;
         }
-<<<<<<< HEAD
-=======
         .profile-avatar-preview {
             width: 110px;
             height: 110px;
@@ -243,7 +254,6 @@ $usersApiBase = gh_users_api_base();
             background-position: center;
             border: 4px solid rgba(255,255,255,0.75);
         }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         .rating-stars i { color: #ffc107; font-size: 0.9rem; }
         .rating-input {
             display: flex;
@@ -324,10 +334,7 @@ $usersApiBase = gh_users_api_base();
             font-weight: 600;
         }
         
-<<<<<<< HEAD
-=======
         /* Styles pour la téléconsultation */
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         .consultation-card {
             background: white;
             border-radius: 20px;
@@ -348,10 +355,7 @@ $usersApiBase = gh_users_api_base();
         }
         .video-placeholder:hover { transform: scale(1.02); }
         
-<<<<<<< HEAD
-=======
         /* Styles pour le suivi */
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         .followup-card {
             background: white;
             border-radius: 20px;
@@ -490,161 +494,55 @@ $usersApiBase = gh_users_api_base();
         }
         .empty-state i { font-size: 4rem; margin-bottom: 20px; opacity: 0.3; }
         
-<<<<<<< HEAD
-        /* Forum Post Card Styles */
-        .forum-post-card {
-            background: white;
-            border-radius: 16px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
-            transition: all 0.3s ease;
-            animation: slideIn 0.4s ease-out;
-        }
-        .forum-post-card:hover {
-            box-shadow: 0 10px 35px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .post-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .post-author {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-        .author-avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 1.2rem;
-        }
-        .post-author h5 {
-            margin: 0;
-            font-weight: 600;
-            color: var(--medical-text);
-        }
-        .post-content {
-            margin-bottom: 15px;
-            line-height: 1.6;
-            color: var(--medical-text);
-        }
-        .post-image, .post-video {
-            margin: 15px 0;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        .post-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #f0f0f0;
-        }
-        .action-btn {
-            flex: 1;
-            background: var(--medical-light-blue);
-            border: none;
-            padding: 10px;
-            border-radius: 8px;
-            color: var(--medical-blue);
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
-        .action-btn:hover {
-            background: var(--medical-blue);
-            color: white;
-            transform: scale(1.05);
-        }
-        .post-crud-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-        }
-        .post-crud-btn.edit { color: var(--medical-blue); }
-        .post-crud-btn.edit:hover { background: var(--medical-light-blue); }
-        .post-crud-btn.del { color: #dc3545; }
-        .post-crud-btn.del:hover { background: #fff0f0; }
-        .pub-modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-        .pub-modal-overlay.active { display: flex; }
-        .pub-modal-box {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            width: 90%;
-            max-width: 540px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-            animation: slideIn 0.3s ease;
-        }
-
-        .is-invalid {
-            border-color: #dc3545 !important;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right calc(0.375em + 0.1875rem) center;
-            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-        }
-        .invalid-feedback {
-            display: block;
-            width: 100%;
-            margin-top: 0.25rem;
-            font-size: 0.875em;
-            color: #dc3545;
-        }
-        .is-valid {
-            border-color: #2ecc71 !important;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%232ecc71' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right calc(0.375em + 0.1875rem) center;
-            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-        }
-        
-=======
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         @media (max-width: 768px) {
             .hero-title { font-size: 2rem; }
             .chatbot-window { width: 320px; right: -50px; }
         }
+        .emoji-trigger-btn {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            font-size: 1.2rem;
+            padding: 2px 6px;
+            border-radius: 6px;
+            z-index: 10;
+        }
+        .emoji-trigger-btn-inline {
+            font-size: 1.1rem;
+            padding: 4px 8px;
+        }
+        .emoji-panel {
+            position: absolute;
+            bottom: 44px;
+            right: 0;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            padding: 10px;
+            z-index: 100;
+            width: 300px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .emoji-panel span {
+            cursor: pointer;
+            font-size: 1.4rem;
+            padding: 2px 4px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .emoji-panel span:hover { background: #f0f0f0; }
     </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
-<<<<<<< HEAD
-        <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-=======
         <a class="navbar-brand" href="#">
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
             <div class="logo-icon"><i class="fas fa-heartbeat"></i></div>
             <div><span class="logo-text">GlobalHealth Connect</span></div>
         </a>
@@ -663,11 +561,7 @@ $usersApiBase = gh_users_api_base();
             </ul>
             <div class="user-menu ms-3" id="userMenu" style="display: none;">
                 <div class="dropdown">
-<<<<<<< HEAD
-                    <div class="user-avatar" data-bs-toggle="dropdown" style="width:42px;height:42px;background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;">
-=======
                     <div class="user-avatar" id="navUserAvatar" data-bs-toggle="dropdown" style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));color:white;background-size:cover;background-position:center;">
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                         <i class="fas fa-user"></i>
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -724,29 +618,17 @@ $usersApiBase = gh_users_api_base();
                     <h3 class="text-center mb-4"><i class="fas fa-calendar-plus me-2" style="color: var(--medical-blue);"></i>Prendre rendez-vous</h3>
                     <form id="appointmentForm">
                         <div class="row g-3">
-<<<<<<< HEAD
-                            <div class="col-md-6"><input type="text" class="form-control form-control-medical" id="patientName" placeholder="Nom complet" ></div>
-                            <div class="col-md-6"><input type="email" class="form-control form-control-medical" id="patientEmail" placeholder="Email" ></div>
-                            <div class="col-md-6"><input type="tel" class="form-control form-control-medical" id="patientPhone" placeholder="Téléphone" ></div>
-                            <div class="col-md-6">
-                                <select class="form-select form-control-medical" id="consultationType" >
-=======
                             <div class="col-md-6"><input type="text" class="form-control form-control-medical" id="patientName" placeholder="Nom complet" required></div>
                             <div class="col-md-6"><input type="email" class="form-control form-control-medical" id="patientEmail" placeholder="Email" required></div>
                             <div class="col-md-6"><input type="tel" class="form-control form-control-medical" id="patientPhone" placeholder="Téléphone" required></div>
                             <div class="col-md-6">
                                 <select class="form-select form-control-medical" id="consultationType" required>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                                     <option value="">Type de consultation</option>
                                     <option value="video">Visioconférence</option>
                                     <option value="presentiel">Présentiel</option>
                                 </select>
                             </div>
-<<<<<<< HEAD
-                            <div class="col-12"><textarea class="form-control form-control-medical" id="symptoms" rows="3" placeholder="Décrivez vos symptômes..." ></textarea></div>
-=======
                             <div class="col-12"><textarea class="form-control form-control-medical" id="symptoms" rows="3" placeholder="Décrivez vos symptômes..." required></textarea></div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                             <div class="col-12"><button type="submit" class="btn btn-medical w-100 py-3">Prendre RDV <i class="fas fa-check-circle ms-2"></i></button></div>
                         </div>
                     </form>
@@ -756,10 +638,7 @@ $usersApiBase = gh_users_api_base();
     </div>
 </section>
 
-<<<<<<< HEAD
-=======
 <!-- SECTION TÉLÉCONSULTATION -->
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <section id="teleconsultation" class="py-5" style="background: white;">
     <div class="container">
         <h2 class="section-title"><i class="fas fa-video me-2"></i>Téléconsultation</h2>
@@ -798,10 +677,7 @@ $usersApiBase = gh_users_api_base();
     </div>
 </section>
 
-<<<<<<< HEAD
-=======
 <!-- SECTION SUIVI DE CONSULTATION -->
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <section id="suivi" class="py-5" style="background: var(--medical-gray);">
     <div class="container">
         <h2 class="section-title"><i class="fas fa-notes-medical me-2"></i>Suivi de consultation</h2>
@@ -814,31 +690,16 @@ $usersApiBase = gh_users_api_base();
                     <form id="followupForm">
                         <div class="mb-3">
                             <label>Date de la consultation</label>
-<<<<<<< HEAD
-                            <input type="date" class="form-control form-control-medical" id="followupDate" >
-                        </div>
-                        <div class="mb-3">
-                            <label>Médecin consulté</label>
-                            <select class="form-select form-control-medical" id="followupDoctor" >
-=======
                             <input type="date" class="form-control form-control-medical" id="followupDate" required>
                         </div>
                         <div class="mb-3">
                             <label>Médecin consulté</label>
                             <select class="form-select form-control-medical" id="followupDoctor" required>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                                 <option value="">Sélectionnez un médecin</option>
                             </select>
                         </div>
                         <div class="mb-3">
                             <label>Sujet / Motif</label>
-<<<<<<< HEAD
-                            <input type="text" class="form-control form-control-medical" id="followupSubject" placeholder="Ex: Consultation pour douleurs dorsales" >
-                        </div>
-                        <div class="mb-3">
-                            <label>Compte-rendu détaillé</label>
-                            <textarea class="followup-textarea" id="followupContent" rows="6" placeholder="Décrivez ce qui s'est passé pendant la consultation..."></textarea>
-=======
                             <input type="text" class="form-control form-control-medical" id="followupSubject" placeholder="Ex: Consultation pour douleurs dorsales" required>
                         </div>
                         <div class="mb-3">
@@ -849,17 +710,12 @@ $usersApiBase = gh_users_api_base();
 - Traitement prescrit
 - Conseils et recommandations
 - Prochaines étapes..."></textarea>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                         </div>
                         <div class="mb-3">
                             <label>Documents joints</label>
                             <div class="file-upload-area" onclick="document.getElementById('followupFile').click()" style="padding: 15px;">
                                 <i class="fas fa-paperclip me-2"></i>
-<<<<<<< HEAD
-                                <small>Cliquez pour joindre un fichier</small>
-=======
                                 <small>Cliquez pour joindre un fichier (ordonnance, compte-rendu...)</small>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                                 <input type="file" id="followupFile" style="display: none" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="uploadFollowupFile(this)">
                             </div>
                             <div id="followupFileName" class="mt-2 small text-muted"></div>
@@ -993,15 +849,9 @@ $usersApiBase = gh_users_api_base();
             <h4><i class="fas fa-star text-warning me-2"></i>Noter votre consultation</h4>
             <form id="submitReviewForm">
                 <div class="row g-3">
-<<<<<<< HEAD
-                    <div class="col-md-6"><input type="text" class="form-control form-control-medical" id="reviewName" placeholder="Votre nom" ></div>
-                    <div class="col-md-6">
-                        <select class="form-select form-control-medical" id="reviewDoctorId">
-=======
                     <div class="col-md-6"><input type="text" class="form-control form-control-medical" id="reviewName" placeholder="Votre nom" required></div>
                     <div class="col-md-6">
                         <select class="form-select form-control-medical" id="reviewDoctorId" required>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                             <option value="">Sélectionnez un médecin</option>
                         </select>
                     </div>
@@ -1014,147 +864,110 @@ $usersApiBase = gh_users_api_base();
                             <input type="radio" name="reviewRating" value="1" id="rating1"><label for="rating1">★</label>
                         </div>
                     </div>
-<<<<<<< HEAD
-                    <div class="col-12"><textarea class="form-control form-control-medical" id="reviewComment" rows="3" placeholder="Partagez votre expérience avec le médecin..." ></textarea></div>
-=======
                     <div class="col-12"><textarea class="form-control form-control-medical" id="reviewComment" rows="3" placeholder="Partagez votre expérience avec le médecin..." required></textarea></div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                     <div class="col-12"><button type="submit" class="btn btn-medical"><i class="fas fa-paper-plane me-2"></i>Publier mon avis</button></div>
                 </div>
             </form>
         </div>
         
-<<<<<<< HEAD
-        <!-- Bouton Nouvelle Publication -->
-        <div class="text-end mb-4">
-            <button class="btn btn-medical" onclick="openAddModal()">
+        <!-- Bouton + formulaire de publication (médecin/admin uniquement) -->
+        <div id="doctorPublishSection" style="display:none;" class="mb-4">
+            <button class="btn btn-medical mb-3" onclick="document.getElementById('newPublicationForm').style.display = document.getElementById('newPublicationForm').style.display === 'none' ? 'block' : 'none'">
                 <i class="fas fa-plus me-2"></i>Nouvelle publication
             </button>
-        </div>
-
-        <!-- Modal Ajout / Modification Publication -->
-        <div class="pub-modal-overlay" id="pubModalOverlay">
-            <div class="pub-modal-box">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 id="pubModalTitle" style="margin:0;font-weight:700;color:var(--medical-dark);"><i class="fas fa-newspaper me-2"></i>Nouvelle publication</h4>
-                    <button onclick="closeModal()" style="background:none;border:none;font-size:1.5rem;line-height:1;cursor:pointer;color:#666;">&times;</button>
-                </div>
-                <form id="pubForm">
-                    <input type="hidden" id="pubFormId">
-                    <input type="hidden" id="pubFormAuthorId">
+            <div id="newPublicationForm" style="display:none;" class="review-form-container">
+                <h5><i class="fas fa-pen me-2"></i>Créer une publication</h5>
+                <form id="submitPublicationForm">
+                    <div class="mb-3 position-relative">
+                        <textarea class="form-control form-control-medical" id="pubContenu" rows="4" placeholder="Contenu de votre publication (min. 10 caractères)..." required></textarea>
+                        <button type="button" class="btn btn-sm btn-light emoji-trigger-btn" onclick="toggleEmojiPicker('pubContenu', 'emojiPanel-pubContenu')" title="Insérer un emoji">😊</button>
+                        <div id="emojiPanel-pubContenu" class="emoji-panel" style="display:none;"></div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+                        <button type="button" class="btn btn-outline-medical btn-sm" id="improvePublicationBtn">
+                            <i class="fas fa-magic me-2"></i>Améliorer avec IA
+                        </button>
+                        <small class="text-muted" id="aiImproveStatus"></small>
+                    </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Nom et Prénom</label>
-                        <div class="form-control form-control-medical" style="background: #f9f9f9; display: flex; align-items: center;">
-                            <span id="pubFormAuthorFullName" style="color: var(--medical-dark); font-weight: 500;"></span>
+                        <label class="form-label text-muted small">Image (optionnel)</label>
+                        <input type="file" class="form-control form-control-medical" id="pubImageFile" accept="image/*">
+                        <div id="pubImagePreview" class="mt-2" style="display:none;">
+                            <img id="pubImagePreviewImg" src="" alt="Aperçu" style="max-height:150px; border-radius:8px;">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Contenu <span class="text-danger">*</span></label>
-                        <textarea class="form-control form-control-medical" id="pubFormContent" rows="4" placeholder="Partagez votre expertise médicale..."></textarea>
-                        <div class="invalid-feedback" id="pubContentError"></div>
+                        <input type="text" class="form-control form-control-medical" id="pubUrlVideo" placeholder="URL vidéo (optionnel)">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Image (URL)</label>
-                        <input type="text" class="form-control form-control-medical" id="pubFormImage" placeholder="https://...">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Vidéo (URL)</label>
-                        <input type="text" class="form-control form-control-medical" id="pubFormVideo" placeholder="https://...">
-                    </div>
-                    <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-medical flex-fill" id="pubFormSubmitBtn">
-                            <i class="fas fa-paper-plane me-2"></i>Publier
-                        </button>
-                        <button type="button" onclick="closeModal()" style="background:#f5f7fa;border:none;padding:10px 20px;border-radius:12px;cursor:pointer;font-weight:500;">Annuler</button>
-                    </div>
+                    <button type="submit" class="btn btn-medical"><i class="fas fa-paper-plane me-2"></i>Publier</button>
                 </form>
             </div>
         </div>
 
-        <div id="forumPostsList">
-            <?php if(count($publications) > 0): ?>
-                <?php foreach($publications as $pub): 
-                    // Get doctor name
-                    $doctorName = 'Dr. Médecin';
-                    if(!empty($pub['id_medecin'])) {
-                        try {
-                            $pdo = config::getConnexion();
-                            $stmt = $pdo->prepare("SELECT nom, prenom FROM utilisateur WHERE id = ?");
-                            $stmt->execute([$pub['id_medecin']]);
-                            $doctor = $stmt->fetch();
-                            if($doctor) {
-                                $doctorName = $doctor['nom'] . ' ' . $doctor['prenom'];
-                            }
-                        } catch(Exception $e) {
-                            $doctorName = 'Dr. Médecin';
-                        }
+        <div class="server-forum-posts">
+            <?php if (count($publications) > 0): ?>
+                <?php foreach ($publications as $publication): ?>
+                    <?php
+                    $doctorName = trim((string) ($publication['doctor_name'] ?? ''));
+                    if ($doctorName === '') {
+                        $doctorName = 'Dr. Médecin';
                     }
-                ?>
-                    <div class="forum-post-card"
-                         data-pub-id="<?php echo (int)$pub['id_publication']; ?>"
-                         data-content="<?php echo htmlspecialchars($pub['contenu'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                         data-image="<?php echo htmlspecialchars($pub['url_image'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                         data-video="<?php echo htmlspecialchars($pub['url_video'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-                        <div class="post-header">
-                            <div class="post-author">
-                                <div class="author-avatar" style="background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));">
-                                    <?php echo strtoupper(substr($doctorName, 0, 1)); ?>
-                                </div>
+                    ?>
+                    <div class="forum-card" data-publication-id="<?php echo (int) $publication['id_publication']; ?>" data-owner-user-id="<?php echo (int) ($publication['owner_user_id'] ?? 0); ?>" data-publication-content="<?php echo htmlspecialchars((string) ($publication['contenu'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="forum-header">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="doctor-avatar"><?php echo htmlspecialchars(strtoupper(substr($doctorName, 0, 2)), ENT_QUOTES, 'UTF-8'); ?></div>
                                 <div>
-                                    <h5><?php echo htmlspecialchars($doctorName); ?></h5>
-                                    <small class="text-muted"><?php echo date('d/m/Y H:i', strtotime($pub['date_publication'] ?? 'now')); ?></small>
+                                    <h5 class="mb-0"><?php echo htmlspecialchars($doctorName, ENT_QUOTES, 'UTF-8'); ?></h5>
+                                    <small class="text-muted"><i class="far fa-calendar-alt me-1"></i><?php echo htmlspecialchars(date('d/m/Y H:i', strtotime((string) ($publication['date_publication'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></small>
                                 </div>
                             </div>
-                            <div class="d-flex gap-1">
-                                <button class="post-crud-btn edit" title="Modifier" onclick="openEditModal(this)">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="post-crud-btn del" title="Supprimer" onclick="deletePublication(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                <div class="forum-owner-actions" data-publication-actions data-owner-user-id="<?php echo (int) ($publication['owner_user_id'] ?? 0); ?>" style="display:none;">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="editPublication(<?php echo (int) $publication['id_publication']; ?>)">Modifier</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePublication(<?php echo (int) $publication['id_publication']; ?>)">Supprimer</button>
+                                </div>
+                                <span class="badge" style="background: var(--medical-green);"><i class="fas fa-check-circle"></i> M?decin</span>
                             </div>
                         </div>
-                        <div class="post-content">
-                            <p><?php echo nl2br(htmlspecialchars(substr($pub['contenu'], 0, 300))); ?>
-                            <?php if(strlen($pub['contenu'] ?? '') > 300): ?>
-                                ...<a href="#" class="text-medical-blue" style="cursor: pointer;"> Lire plus</a>
+                        <div class="forum-content">
+                            <p id="pub-text-<?php echo (int) $publication['id_publication']; ?>"><?php echo nl2br(htmlspecialchars((string) ($publication['contenu'] ?? ''), ENT_QUOTES, 'UTF-8')); ?></p>
+                            <div id="pub-edit-<?php echo (int) $publication['id_publication']; ?>" style="display:none;" class="mb-2">
+                                <textarea class="form-control mb-2" rows="3" id="pub-textarea-<?php echo (int) $publication['id_publication']; ?>"><?php echo htmlspecialchars((string) ($publication['contenu'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                <label class="form-label text-muted small">Changer l'image</label>
+                                <input type="file" class="form-control form-control-sm mb-2" accept="image/*" id="pub-img-<?php echo (int) $publication['id_publication']; ?>">
+                                <?php if (!empty($publication['url_image'])): ?>
+                                    <small class="text-muted d-block mb-2">Image actuelle : <a href="<?php echo htmlspecialchars((string) $publication['url_image'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank">voir</a></small>
+                                <?php endif; ?>
+                                <input type="text" class="form-control form-control-sm mb-2" id="pub-video-<?php echo (int) $publication['id_publication']; ?>" placeholder="URL vidéo (optionnel)" value="<?php echo htmlspecialchars((string) ($publication['url_video'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="d-flex gap-2 mt-1">
+                                    <button class="btn btn-medical btn-sm" onclick="savePublication(<?php echo (int) $publication['id_publication']; ?>)">Enregistrer</button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="cancelEditPublication(<?php echo (int) $publication['id_publication']; ?>)">Annuler</button>
+                                </div>
+                            </div>
+                            <?php if (!empty($publication['url_image'])): ?>
+                                <img src="<?php echo htmlspecialchars((string) $publication['url_image'], ENT_QUOTES, 'UTF-8'); ?>" class="forum-media mt-2" alt="Image publication">
                             <?php endif; ?>
-                            </p>
+                            <?php if (!empty($publication['url_video'])): ?>
+                                <iframe class="forum-media mt-2" src="<?php echo htmlspecialchars((string) $publication['url_video'], ENT_QUOTES, 'UTF-8'); ?>" title="Vidéo publication" allowfullscreen></iframe>
+                            <?php endif; ?>
                         </div>
-                        <?php if(!empty($pub['url_image'])): ?>
-                            <div class="post-image">
-                                <img src="<?php echo htmlspecialchars($pub['url_image']); ?>" alt="Publication image" style="max-width: 100%; border-radius: 12px; max-height: 400px; object-fit: cover;">
-                            </div>
-                        <?php endif; ?>
-                        <?php if(!empty($pub['url_video'])): ?>
-                            <div class="post-video">
-                                <iframe width="100%" height="315" src="<?php echo htmlspecialchars($pub['url_video']); ?>" frameborder="0" allowfullscreen style="border-radius: 12px;"></iframe>
-                            </div>
-                        <?php endif; ?>
-                        <div class="post-actions">
-                            <button class="action-btn" onclick="toggleComments(<?php echo $pub['id_publication']; ?>)"><i class="fas fa-comment"></i> Commenter</button>
-                            <button class="action-btn"><i class="fas fa-heart"></i> J'aime</button>
-                            <button class="action-btn"><i class="fas fa-share"></i> Partager</button>
+                        <div class="forum-stats">
+                            <span><i class="far fa-comment me-1"></i>Commentaires</span>
                         </div>
-
-                        <!-- Comments Section -->
-                        <div id="comments-section-<?php echo $pub['id_publication']; ?>" class="comments-section mt-4" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 12px;">
-                            <h6 class="mb-3"><i class="fas fa-comments me-2"></i>Commentaires (Pub ID: <?php echo $pub['id_publication']; ?>)</h6>
-                            
-                            <!-- Comment Form -->
-                            <form class="mb-3" onsubmit="submitComment(event, <?php echo (int)$pub['id_publication']; ?>)" style="background: white; padding: 15px; border-radius: 10px;">
-                                <div class="mb-2">
-                                    <textarea class="form-control form-control-medical" id="comment-content-<?php echo $pub['id_publication']; ?>" placeholder="Écrivez votre commentaire..." rows="3" required></textarea>
+                        <div class="forum-content pt-0">
+                            <h6 class="mb-3"><i class="fas fa-comments me-2"></i>Commentaires</h6>
+                            <div id="comments-list-<?php echo (int) $publication['id_publication']; ?>" class="mb-3">
+                                <div class="text-center text-muted py-3">Chargement...</div>
+                            </div>
+                            <form onsubmit="submitComment(event, <?php echo (int) $publication['id_publication']; ?>)" style="position:relative;">
+                                <div id="emojiPanel-comment-<?php echo (int) $publication['id_publication']; ?>" class="emoji-panel" style="display:none; bottom:48px; right:0;"></div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="comment-content-<?php echo (int) $publication['id_publication']; ?>" placeholder="Ajouter un commentaire..." required>
+                                    <button type="button" class="btn btn-light border emoji-trigger-btn-inline" onclick="toggleEmojiPicker('comment-content-<?php echo (int) $publication['id_publication']; ?>', 'emojiPanel-comment-<?php echo (int) $publication['id_publication']; ?>')" title="Emoji">😊</button>
+                                    <button class="btn btn-medical" type="submit">Envoyer</button>
                                 </div>
-                                <button type="submit" class="btn btn-medical btn-sm">
-                                    <i class="fas fa-paper-plane me-2"></i>Publier
-                                </button>
                             </form>
-
-                            <!-- Comments List -->
-                            <div id="comments-list-<?php echo $pub['id_publication']; ?>" style="max-height: 400px; overflow-y: auto;">
-                                <div class="text-center text-muted py-3">Chargement des commentaires...</div>
-                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -1165,14 +978,13 @@ $usersApiBase = gh_users_api_base();
                     <small>Les médecins publieront bientôt du contenu.</small>
                 </div>
             <?php endif; ?>
-=======
-        <div id="forumPostsList">
+        </div>
+        <div id="forumPostsList" style="display: none;">
             <div class="empty-state">
                 <i class="fas fa-newspaper"></i>
                 <p>Aucune publication pour le moment.</p>
                 <small>Les médecins publieront bientôt du contenu.</small>
             </div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         </div>
         
         <h3 class="mt-5 mb-4"><i class="fas fa-comments me-2"></i>Avis des patients</h3>
@@ -1186,10 +998,7 @@ $usersApiBase = gh_users_api_base();
     </div>
 </section>
 
-<<<<<<< HEAD
-=======
 <!-- Modals Connexion / Inscription -->
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <div class="modal fade" id="signinModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
@@ -1198,19 +1007,6 @@ $usersApiBase = gh_users_api_base();
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-<<<<<<< HEAD
-                <form id="signinForm">
-                    <div class="mb-3">
-                        <label>Email</label>
-                        <input type="email" class="form-control form-control-medical" id="signinEmail" >
-                    </div>
-                    <div class="mb-3">
-                        <label>Mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signinPassword" >
-                    </div>
-                    <button type="submit" class="btn btn-medical w-100">Se connecter</button>
-                    <div class="text-center mt-3">
-=======
                 <form id="signinForm" novalidate>
                     <div class="mb-3">
                         <label>Email</label>
@@ -1225,7 +1021,6 @@ $usersApiBase = gh_users_api_base();
                         <small><a href="#" onclick="switchToForgotPassword()">Mot de passe oublié ?</a></small>
                     </div>
                     <div class="text-center mt-2">
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                         <small>Pas encore de compte ? <a href="#" onclick="switchToSignUp()">S'inscrire</a></small>
                     </div>
                 </form>
@@ -1234,8 +1029,6 @@ $usersApiBase = gh_users_api_base();
     </div>
 </div>
 
-<<<<<<< HEAD
-=======
 <div class="modal fade" id="forgotPasswordModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
@@ -1267,7 +1060,6 @@ $usersApiBase = gh_users_api_base();
     </div>
 </div>
 
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <div class="modal fade" id="signupModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
@@ -1276,29 +1068,6 @@ $usersApiBase = gh_users_api_base();
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-<<<<<<< HEAD
-                <form id="signupForm">
-                    <div class="mb-3">
-                        <label>Nom complet</label>
-                        <input type="text" class="form-control form-control-medical" id="signupName" >
-                    </div>
-                    <div class="mb-3">
-                        <label>Email</label>
-                        <input type="email" class="form-control form-control-medical" id="signupEmail" >
-                    </div>
-                    <div class="mb-3">
-                        <label>Téléphone</label>
-                        <input type="tel" class="form-control form-control-medical" id="signupPhone">
-                    </div>
-                    <div class="mb-3">
-                        <label>Mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupPassword" >
-                        <div id="passwordStrength" class="mt-1 small"></div>
-                    </div>
-                    <div class="mb-3">
-                        <label>Confirmer le mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupConfirmPassword" >
-=======
                 <form id="signupForm" novalidate>
                     <div class="mb-3">
                         <label>Nom complet</label>
@@ -1361,7 +1130,6 @@ $usersApiBase = gh_users_api_base();
                     <div class="mb-3">
                         <label>Confirmer le mot de passe</label>
                         <input type="password" class="form-control form-control-medical" id="signupConfirmPassword">
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                     </div>
                     <button type="submit" class="btn btn-medical w-100">S'inscrire</button>
                     <div class="text-center mt-3">
@@ -1373,8 +1141,6 @@ $usersApiBase = gh_users_api_base();
     </div>
 </div>
 
-<<<<<<< HEAD
-=======
 <div class="modal fade" id="profileModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
@@ -1444,7 +1210,6 @@ $usersApiBase = gh_users_api_base();
     </div>
 </div>
 
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <div class="chatbot-container">
     <div class="chatbot-toggle" onclick="toggleChatbot()">
         <i class="fas fa-comment-medical fa-2x"></i>
@@ -1464,415 +1229,267 @@ $usersApiBase = gh_users_api_base();
 <div class="notification-toast" id="notificationToast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<<<<<<< HEAD
 <script src="index.js?v=<?php echo time(); ?>"></script>
-
 <script>
-// Comment System Functions
-function toggleComments(pubId) {
-    const section = document.getElementById(`comments-section-${pubId}`);
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        loadComments(pubId);
-    } else {
-        section.style.display = 'none';
-    }
-}
+    async function loadComments(pubId) {
+        const listDiv = document.getElementById(`comments-list-${pubId}`);
+        if (!listDiv) return;
 
-async function loadComments(pubId) {
-    const listDiv = document.getElementById(`comments-list-${pubId}`);
-    listDiv.innerHTML = '<div class="text-center text-muted py-3">Chargement...</div>';
+        listDiv.innerHTML = '<div class="text-center text-muted py-3">Chargement...</div>';
 
-    try {
-        const response = await fetch('../../backoffice/layout/backoffice.php?action=get-comments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_publication: parseInt(pubId) })
-        });
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=get-comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_publication: Number(pubId) })
+            });
 
-        const result = await response.json();
+            const result = await response.json();
+            if (!result.success || !Array.isArray(result.data) || result.data.length === 0) {
+                listDiv.innerHTML = '<div class="text-center text-muted py-3">Aucun commentaire pour le moment.</div>';
+                return;
+            }
 
-        if (result.success && result.data && result.data.length > 0) {
-            listDiv.innerHTML = result.data.map(c => `
-                <div style="background: white; padding: 12px; margin-bottom: 10px; border-radius: 8px; border-left: 3px solid var(--medical-blue);"
-                     data-comment-id="${c.id_commentaire}" data-pub-id="${pubId}">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div style="font-weight:600; color:var(--medical-blue);">
-                            ${escapeHtml(c.nom)} ${escapeHtml(c.prenom)}
-                            <span style="font-size:0.85rem; color:#999; margin-left:10px; font-weight:400;">
-                                ${formatDate(c.date_publication)}
-                            </span>
+            listDiv.innerHTML = result.data.map((comment) => `
+                <div class="comment-card" id="comment-card-${Number(comment.id_commentaire)}">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <strong>${escapeHtml(comment.nom)} ${escapeHtml(comment.prenom)}</strong><br>
+                            <small>${formatDate(comment.date_publication)}</small>
                         </div>
-                        <div class="comment-actions" style="display:flex; gap:2px; flex-shrink:0;">
-                            <button onclick="startEditComment(this)" title="Modifier"
-                                style="background:none;border:none;cursor:pointer;color:var(--medical-blue);padding:4px 8px;border-radius:6px;font-size:0.85rem;transition:background 0.2s;"
-                                onmouseover="this.style.background='#e8f4ff'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteCommentFront(this)" title="Supprimer"
-                                style="background:none;border:none;cursor:pointer;color:#dc3545;padding:4px 8px;border-radius:6px;font-size:0.85rem;transition:background 0.2s;"
-                                onmouseover="this.style.background='#fff0f0'" onmouseout="this.style.background='none'">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                        <div class="forum-owner-actions" data-comment-actions data-owner-user-id="${Number(comment.id_user || 0)}" style="display:none;">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="editComment(${Number(pubId)}, ${Number(comment.id_commentaire)})">Modifier</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteComment(${Number(pubId)}, ${Number(comment.id_commentaire)})">Supprimer</button>
                         </div>
                     </div>
-                    <div class="comment-text" style="margin-top:8px; color:#333; line-height:1.5;">
-                        ${escapeHtml(c.contenu)}
+                    <p class="mb-0 mt-2" id="comment-text-${Number(comment.id_commentaire)}">${escapeHtml(comment.contenu)}</p>
+                    <div id="comment-edit-${Number(comment.id_commentaire)}" style="display:none;" class="mt-2">
+                        <textarea class="form-control form-control-sm" rows="2" id="comment-textarea-${Number(comment.id_commentaire)}">${escapeHtml(comment.contenu)}</textarea>
+                        <div class="d-flex gap-2 mt-1">
+                            <button class="btn btn-medical btn-sm" onclick="saveComment(${Number(pubId)}, ${Number(comment.id_commentaire)})">Enregistrer</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="cancelEditComment(${Number(comment.id_commentaire)})">Annuler</button>
+                        </div>
                     </div>
                 </div>
             `).join('');
-        } else {
-            listDiv.innerHTML = '<div class="text-center text-muted py-3">Aucun commentaire pour le moment.</div>';
+            refreshForumOwnershipControls();
+        } catch (error) {
+            listDiv.innerHTML = `<div class="alert alert-danger mb-0">Erreur: ${escapeHtml(error.message)}</div>`;
         }
-    } catch (error) {
-        listDiv.innerHTML = `<div class="alert alert-danger mb-0">Erreur: ${error.message}</div>`;
-        console.error('Error loading comments:', error);
-    }
-}
-
-async function submitComment(event, pubId) {
-    event.preventDefault();
-
-    const contentInput = document.getElementById(`comment-content-${pubId}`);
-    
-    if (!contentInput.value.trim()) {
-        alert('Veuillez écrire un commentaire');
-        return;
     }
 
-    let userId = 1;
-    try {
-        const userRes = await fetch('../../backoffice/layout/backoffice.php?action=get-users');
-        const userData = await userRes.json();
-        if (userData.success && userData.data && userData.data.length > 0) {
-            userId = userData.data[0].id;
-            console.log('Using user ID:', userId);
-        }
-    } catch (e) {
-        console.warn('Could not fetch users, using default ID');
-    }
-
-    const commentData = {
-        id_publication: parseInt(pubId),
-        id_user: parseInt(userId),
-        contenu: contentInput.value.trim()
-    };
-    
-    console.log('Submitting comment:', commentData);
-
-    try {
-        const response = await fetch('../../backoffice/layout/backoffice.php?action=add-comment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(commentData)
+    function refreshForumOwnershipControls() {
+        const currentUserId = Number(currentPatient?.id || 0);
+        document.querySelectorAll('[data-publication-actions], [data-comment-actions]').forEach((element) => {
+            const ownerUserId = Number(element.dataset.ownerUserId || 0);
+            element.style.display = currentUserId > 0 && ownerUserId === currentUserId ? 'flex' : 'none';
         });
+    }
 
-        const result = await response.json();
-        console.log('Response:', result);
+    function editPublication(publicationId) {
+        document.getElementById('pub-text-' + publicationId).style.display = 'none';
+        document.getElementById('pub-edit-' + publicationId).style.display = 'block';
+        document.getElementById('pub-textarea-' + publicationId).focus();
+    }
 
-        if (result.success) {
-            contentInput.value = '';
-            showFrontNotification('Commentaire publié avec succès !');
-            loadComments(pubId);
-        } else {
-            showFrontNotification('Erreur : ' + (result.error || 'Erreur inconnue'), true);
+    function cancelEditPublication(publicationId) {
+        document.getElementById('pub-text-' + publicationId).style.display = 'block';
+        document.getElementById('pub-edit-' + publicationId).style.display = 'none';
+    }
+
+    async function savePublication(publicationId) {
+        const contenu = document.getElementById('pub-textarea-' + publicationId).value.trim();
+        if (contenu.length < 10) {
+            showFrontNotification('Le contenu doit faire au moins 10 caractères', true);
+            return;
         }
-    } catch (error) {
-        showFrontNotification('Erreur réseau : ' + error.message, true);
-        console.error('Error submitting comment:', error);
-    }
-}
-
-// ============ COMMENTAIRES CRUD ============
-
-function startEditComment(btn) {
-    const card = btn.closest('[data-comment-id]');
-    const commentId = card.dataset.commentId;
-    const pubId     = card.dataset.pubId;
-    const textDiv   = card.querySelector('.comment-text');
-    const original  = textDiv.textContent.trim();
-
-    // Masquer les boutons pendant l'édition
-    card.querySelector('.comment-actions').style.display = 'none';
-
-    textDiv.innerHTML = `
-        <textarea id="edit-comment-${commentId}" rows="3"
-            style="width:100%;margin-top:8px;padding:10px;border:1px solid #ddd;border-radius:10px;font-family:inherit;font-size:0.95rem;resize:vertical;">${escapeHtml(original)}</textarea>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-            <button onclick="saveEditComment('${commentId}','${pubId}')"
-                style="background:linear-gradient(135deg,#2b7be4,#2ecc71);color:white;border:none;padding:6px 16px;border-radius:10px;cursor:pointer;font-size:0.85rem;font-weight:600;">
-                <i class="fas fa-save me-1"></i>Enregistrer
-            </button>
-            <button onclick="cancelEditComment('${commentId}','${pubId}')"
-                style="background:#f5f7fa;border:none;padding:6px 16px;border-radius:10px;cursor:pointer;font-size:0.85rem;">
-                Annuler
-            </button>
-        </div>
-    `;
-    document.getElementById(`edit-comment-${commentId}`).focus();
-}
-
-async function saveEditComment(commentId, pubId) {
-    const textarea = document.getElementById(`edit-comment-${commentId}`);
-    const contenu  = textarea ? textarea.value.trim() : '';
-
-    if (!contenu || contenu.length < 2) {
-        showFrontNotification('Le commentaire est trop court.', true);
-        return;
-    }
-
-    try {
-        const r = await fetch('../../backoffice/layout/backoffice.php?action=update-comment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: parseInt(commentId), contenu })
-        });
-        const result = await r.json();
-        if (result.success) {
-            showFrontNotification('Commentaire modifié !');
-            loadComments(pubId);
-        } else {
-            showFrontNotification(result.error || 'Erreur lors de la modification', true);
-        }
-    } catch (err) {
-        showFrontNotification('Erreur réseau : ' + err.message, true);
-    }
-}
-
-function cancelEditComment(commentId, pubId) {
-    loadComments(pubId);
-}
-
-async function deleteCommentFront(btn) {
-    const card      = btn.closest('[data-comment-id]');
-    const commentId = card.dataset.commentId;
-    const pubId     = card.dataset.pubId;
-
-    if (!confirm('Supprimer ce commentaire ?')) return;
-
-    try {
-        const r = await fetch('../../backoffice/layout/backoffice.php?action=delete-comment-db', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: parseInt(commentId) })
-        });
-        const result = await r.json();
-        if (result.success) {
-            showFrontNotification('Commentaire supprimé.');
-            loadComments(pubId);
-        } else {
-            showFrontNotification(result.error || 'Erreur lors de la suppression', true);
-        }
-    } catch (err) {
-        showFrontNotification('Erreur réseau : ' + err.message, true);
-    }
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-    return text.replace(/[&<>"']/g, m => map[m]);
-}
-
-function formatDate(dateString) {
-    if (!dateString) return 'Date inconnue';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-}
-
-// ============ PUBLICATIONS CRUD ============
-
-async function loadCurrentUserForForm() {
-    console.log('🔄 Chargement de l\'utilisateur actuel...');
-    try {
-        let currentUser = null;
-        
-        // Essayer d'abord le sessionStorage
-        if (typeof sessionStorage !== 'undefined') {
-            const stored = sessionStorage.getItem('currentUser');
-            if (stored) {
-                try {
-                    currentUser = JSON.parse(stored);
-                    console.log('✅ Utilisateur trouvé en cache:', currentUser);
-                } catch (e) {
-                    console.warn('⚠️ Erreur lors du parsing du cache:', e);
-                }
+        const url_video = document.getElementById('pub-video-' + publicationId)?.value.trim() || '';
+        const imgInput = document.getElementById('pub-img-' + publicationId);
+        const formData = new FormData();
+        formData.append('id', publicationId);
+        formData.append('contenu', contenu);
+        formData.append('url_video', url_video);
+        if (imgInput?.files[0]) formData.append('image', imgInput.files[0]);
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=update-publication', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showFrontNotification(result.error || 'Erreur lors de la modification', true);
+                return;
             }
+            showFrontNotification('Publication modifiée avec succès');
+            setTimeout(() => location.reload(), 800);
+        } catch (error) {
+            showFrontNotification(error.message, true);
         }
-        
-        // Si pas en cache, récupérer du serveur
-        if (!currentUser) {
-            console.log('📡 Appel API get-current-user...');
-            const userRes = await fetch('../../backoffice/layout/backoffice.php?action=get-current-user');
-            const userData = await userRes.json();
-            console.log('📨 Réponse API:', userData);
-            
-            if (userData.success && userData.data) {
-                currentUser = userData.data;
-                if (typeof sessionStorage !== 'undefined') {
-                    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                }
-                console.log('✅ Utilisateur chargé du serveur:', currentUser);
-            } else {
-                console.error('❌ Erreur API:', userData.error);
+    }
+
+    async function deletePublication(publicationId) {
+        if (!currentPatient?.id) {
+            showFrontNotification('Veuillez vous connecter pour supprimer votre publication', true);
+            return;
+        }
+        if (!window.confirm('Supprimer cette publication ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=delete-publication', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: Number(publicationId) })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showFrontNotification(result.error || 'Erreur lors de la suppression', true);
+                return;
             }
+
+            showFrontNotification('Publication supprimée avec succès');
+            window.location.reload();
+        } catch (error) {
+            showFrontNotification(error.message, true);
         }
-        
-        // Remplir le formulaire avec les données de l'utilisateur
-        if (currentUser && currentUser.id) {
-            const nom = currentUser.nom || '';
-            const prenom = currentUser.prenom || '';
-            const fullName = (nom + ' ' + prenom).trim() || '(Non défini)';
-            
-            console.log('📝 Remplissage du formulaire avec:', { fullName, id: currentUser.id });
-            
-            document.getElementById('pubFormAuthorId').value = currentUser.id;
-            document.getElementById('pubFormAuthorFullName').textContent = fullName;
-            
-            console.log('✅ Formulaire rempli avec succès');
-        } else {
-            console.error('❌ Pas d\'utilisateur trouvé');
-            document.getElementById('pubFormAuthorFullName').textContent = 'Erreur: non connecté';
-        }
-    } catch (e) {
-        console.error('❌ Erreur lors du chargement de l\'utilisateur:', e);
-        document.getElementById('pubFormAuthorLastName').textContent = 'Erreur';
-        document.getElementById('pubFormAuthorFirstName').textContent = e.message;
-    }
-}
-
-function openAddModal() {
-    document.getElementById('pubModalTitle').innerHTML = '<i class="fas fa-newspaper me-2"></i>Nouvelle publication';
-    document.getElementById('pubFormSubmitBtn').innerHTML = '<i class="fas fa-paper-plane me-2"></i>Publier';
-    document.getElementById('pubFormId').value = '';
-    document.getElementById('pubFormContent').value = '';
-    document.getElementById('pubFormImage').value = '';
-    document.getElementById('pubFormVideo').value = '';
-    document.getElementById('pubFormContent').classList.remove('is-invalid');
-    document.getElementById('pubModalOverlay').classList.add('active');
-    loadCurrentUserForForm();
-}
-
-function openEditModal(btn) {
-    const card = btn.closest('.forum-post-card');
-    const pubId   = card.dataset.pubId;
-    const content = card.dataset.content;
-    const image   = card.dataset.image;
-    const video   = card.dataset.video;
-
-    document.getElementById('pubModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Modifier la publication';
-    document.getElementById('pubFormSubmitBtn').innerHTML = '<i class="fas fa-save me-2"></i>Enregistrer';
-    document.getElementById('pubFormId').value = pubId;
-    document.getElementById('pubFormContent').value = content;
-    document.getElementById('pubFormImage').value = image || '';
-    document.getElementById('pubFormVideo').value = video || '';
-    document.getElementById('pubFormContent').classList.remove('is-invalid');
-    document.getElementById('pubModalOverlay').classList.add('active');
-}
-
-function closeModal() {
-    document.getElementById('pubModalOverlay').classList.remove('active');
-}
-
-document.getElementById('pubModalOverlay').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
-
-document.getElementById('pubForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const pubId   = document.getElementById('pubFormId').value;
-    const content = document.getElementById('pubFormContent').value.trim();
-    const image   = document.getElementById('pubFormImage').value.trim();
-    const video   = document.getElementById('pubFormVideo').value.trim();
-    const authorId = document.getElementById('pubFormAuthorId').value;
-
-    const contentEl = document.getElementById('pubFormContent');
-    if (!content || content.length < 10) {
-        contentEl.classList.add('is-invalid');
-        document.getElementById('pubContentError').textContent = 'Le contenu doit contenir au moins 10 caractères.';
-        return;
-    }
-    contentEl.classList.remove('is-invalid');
-
-    if (!pubId && !authorId) {
-        showFrontNotification('Erreur: Utilisateur non identifié. Veuillez recharger la page.', true);
-        return;
     }
 
-    const submitBtn = document.getElementById('pubFormSubmitBtn');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>En cours...';
-
-    try {
-        let url, body;
-        if (pubId) {
-            url  = '../../backoffice/layout/backoffice.php?action=update-publication';
-            body = { id: parseInt(pubId), contenu: content, url_image: image || null, url_video: video || null };
-        } else {
-            url  = '../../backoffice/layout/backoffice.php?action=add-publication';
-            body = { id_medecin: parseInt(authorId), contenu: content, url_image: image || null, url_video: video || null };
-        }
-
-        const r = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const result = await r.json();
-
-        if (result.success) {
-            closeModal();
-            showFrontNotification(pubId ? 'Publication modifiée avec succès !' : 'Publication ajoutée avec succès !');
-            setTimeout(() => window.location.reload(), 900);
-        } else {
-            showFrontNotification(result.error || 'Erreur lors de l\'opération', true);
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = pubId
-                ? '<i class="fas fa-save me-2"></i>Enregistrer'
-                : '<i class="fas fa-paper-plane me-2"></i>Publier';
-        }
-    } catch (err) {
-        showFrontNotification('Erreur réseau : ' + err.message, true);
-        submitBtn.disabled = false;
+    function editComment(pubId, commentId) {
+        document.getElementById('comment-text-' + commentId).style.display = 'none';
+        document.getElementById('comment-edit-' + commentId).style.display = 'block';
+        document.getElementById('comment-textarea-' + commentId).focus();
     }
-});
 
-async function deletePublication(btn) {
-    const pubId = btn.closest('.forum-post-card').dataset.pubId;
-    if (!confirm('Supprimer cette publication ? Cette action est irréversible.')) return;
-    try {
-        const r = await fetch('../../backoffice/layout/backoffice.php?action=delete-publication', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: parseInt(pubId) })
-        });
-        const result = await r.json();
-        if (result.success) {
-            showFrontNotification('Publication supprimée.');
-            setTimeout(() => window.location.reload(), 900);
-        } else {
-            showFrontNotification(result.error || 'Erreur lors de la suppression', true);
-        }
-    } catch (err) {
-        showFrontNotification('Erreur réseau : ' + err.message, true);
+    function cancelEditComment(commentId) {
+        document.getElementById('comment-text-' + commentId).style.display = 'block';
+        document.getElementById('comment-edit-' + commentId).style.display = 'none';
     }
-}
 
-function showFrontNotification(msg, isError = false) {
-    const toast = document.getElementById('notificationToast');
-    toast.textContent = msg;
-    toast.style.borderLeftColor = isError ? '#dc3545' : 'var(--medical-green)';
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3500);
-}
-</script>
-</body>
-</html>
+    async function saveComment(pubId, commentId) {
+        const contenu = document.getElementById('comment-textarea-' + commentId).value.trim();
+        if (contenu.length < 2) {
+            showFrontNotification('Le commentaire doit faire au moins 2 caractères', true);
+            return;
+        }
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=update-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: Number(commentId), contenu })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showFrontNotification(result.error || 'Erreur lors de la modification', true);
+                return;
+            }
+            showFrontNotification('Commentaire modifié avec succès');
+            const moderationStatus = result.moderation?.status || 'safe';
+            if (moderationStatus !== 'safe') {
+                showFrontNotification('Commentaire envoye, mais masque par la moderation IA');
+            }
+            await loadComments(pubId);
+        } catch (error) {
+            showFrontNotification(error.message, true);
+        }
+    }
 
-</body>
-</html>
-=======
-<script>
+    async function deleteComment(pubId, commentId) {
+        if (!currentPatient?.id) {
+            showFrontNotification('Veuillez vous connecter pour supprimer votre commentaire', true);
+            return;
+        }
+        if (!window.confirm('Supprimer ce commentaire ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=delete-comment-db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: Number(commentId) })
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showFrontNotification(result.error || 'Erreur lors de la suppression', true);
+                return;
+            }
+
+            showFrontNotification('Commentaire supprimé avec succès');
+            await loadComments(pubId);
+        } catch (error) {
+            showFrontNotification(error.message, true);
+        }
+    }
+
+    async function submitComment(event, pubId) {
+        event.preventDefault();
+
+        const input = document.getElementById(`comment-content-${pubId}`);
+        if (!input || !input.value.trim()) {
+            return;
+        }
+
+        const userId = Number(currentPatient?.id || 0);
+        if (!userId) {
+            showFrontNotification('Veuillez vous connecter pour commenter', true);
+            return;
+        }
+
+        try {
+            const response = await fetch('/globalhealth-connect1/views/backoffice/layout/backoffice.php?action=add-comment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id_publication: Number(pubId),
+                    id_user: userId,
+                    contenu: input.value.trim()
+                })
+            });
+
+            const result = await response.json();
+            if (!result.success) {
+                showFrontNotification(result.error || 'Erreur lors de l\'ajout du commentaire', true);
+                return;
+            }
+
+            const moderationStatus = result.moderation?.status || 'safe';
+            input.value = '';
+            if (moderationStatus !== 'safe') {
+                showFrontNotification('Commentaire envoye, mais masque par la moderation IA');
+            }
+            showFrontNotification('Commentaire publié avec succès');
+            await loadComments(pubId);
+        } catch (error) {
+            showFrontNotification(error.message, true);
+        }
+    }
+
+    function showFrontNotification(message, isError = false) {
+        const toast = document.getElementById('notificationToast');
+        if (!toast) return;
+        toast.textContent = message;
+        toast.style.borderLeftColor = isError ? '#dc3545' : 'var(--medical-green)';
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function formatDate(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleString('fr-FR');
+    }
+
+    function escapeAttribute(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
     // ============================================
     // AUTHENTIFICATION PATIENT
     // ============================================
@@ -2222,13 +1839,116 @@ function showFrontNotification(msg, isError = false) {
             renderUserAvatar();
             // Rafraîchir les données complètes de l'utilisateur
             refreshCurrentPatient();
+            refreshForumOwnershipControls();
+            // Afficher bouton publication pour médecin et admin
+            const publishSection = document.getElementById('doctorPublishSection');
+            if (publishSection) {
+                const role = currentPatient.role || 'patient';
+                publishSection.style.display = ['medecin', 'admin'].includes(role) ? 'block' : 'none';
+            }
         } else {
             userMenu.style.display = 'none';
             authButtons.style.display = 'flex';
             document.getElementById('id_patient').value = '';
             renderUserAvatar();
+            refreshForumOwnershipControls();
+            const publishSection = document.getElementById('doctorPublishSection');
+            if (publishSection) publishSection.style.display = 'none';
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const pubForm = document.getElementById('submitPublicationForm');
+        if (pubForm) {
+            // Aperçu image
+            document.getElementById('pubImageFile').addEventListener('change', function() {
+                const file = this.files[0];
+                const preview = document.getElementById('pubImagePreview');
+                const img = document.getElementById('pubImagePreviewImg');
+                if (file) {
+                    img.src = URL.createObjectURL(file);
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            });
+
+            const improveBtn = document.getElementById('improvePublicationBtn');
+            const aiStatus = document.getElementById('aiImproveStatus');
+            improveBtn?.addEventListener('click', async function() {
+                const contentInput = document.getElementById('pubContenu');
+                const contenu = contentInput.value.trim();
+
+                if (contenu.length < 10) {
+                    showNotification('Écrivez au moins 10 caractères avant d utiliser l IA', true);
+                    return;
+                }
+
+                const originalText = improveBtn.innerHTML;
+                improveBtn.disabled = true;
+                improveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Amélioration...';
+                if (aiStatus) aiStatus.textContent = 'Gemini prépare une meilleure version';
+
+                try {
+                    const resp = await fetch('/globalhealth-connect1/api/publications.php?action=improve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contenu })
+                    });
+                    const result = await resp.json();
+
+                    if (!result.success) {
+                        showNotification(result.error || 'Erreur IA', true);
+                        return;
+                    }
+
+                    contentInput.value = result.improved;
+                    contentInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    showNotification('Texte amélioré avec Gemini');
+                } catch (err) {
+                    showNotification('Erreur IA : ' + err.message, true);
+                } finally {
+                    improveBtn.disabled = false;
+                    improveBtn.innerHTML = originalText;
+                    if (aiStatus) aiStatus.textContent = '';
+                }
+            });
+
+            pubForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (!currentPatient) { showNotification('Vous devez être connecté', true); return; }
+                const contenu = document.getElementById('pubContenu').value.trim();
+                const url_video = document.getElementById('pubUrlVideo').value.trim();
+                if (contenu.length < 10) { showNotification('Le contenu doit faire au moins 10 caractères', true); return; }
+
+                const formData = new FormData();
+                formData.append('contenu', contenu);
+                formData.append('id_medecin', currentPatient.id);
+                if (url_video) formData.append('url_video', url_video);
+                const imageFile = document.getElementById('pubImageFile').files[0];
+                if (imageFile) formData.append('image', imageFile);
+
+                try {
+                    const resp = await fetch('/globalhealth-connect1/api/publications.php?action=store', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await resp.json();
+                    if (result.success) {
+                        const moderationStatus = result.moderation?.status || 'safe';
+                        showNotification(moderationStatus === 'safe'
+                            ? 'Publication créée avec succès !'
+                            : 'Publication envoyée en modération IA avant affichage.');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showNotification(result.error || 'Erreur lors de la publication', true);
+                    }
+                } catch (err) {
+                    showNotification('Erreur réseau : ' + err.message, true);
+                }
+            });
+        }
+    });
     
     // ============================================
     // TÉLÉCONSULTATION
@@ -2679,22 +2399,29 @@ function showFrontNotification(msg, isError = false) {
         if(storedPosts) forumPosts = JSON.parse(storedPosts);
         else forumPosts = [];
         
-        const storedReviews = localStorage.getItem('globalhealth_reviews');
-        if(storedReviews) reviewsData = JSON.parse(storedReviews);
-        else reviewsData = [];
+        try {
+            const reviewsResponse = await fetch('/globalhealth-connect1/api/reviews.php');
+            const reviewsResult = await reviewsResponse.json();
+            reviewsData = reviewsResult.success ? reviewsResult.data : [];
+        } catch (error) {
+            reviewsData = [];
+            showNotification(`Erreur chargement avis: ${error.message}`, true);
+        }
         
         const storedAppointments = localStorage.getItem('globalhealthBack_appointments');
         if(storedAppointments) appointmentsData = JSON.parse(storedAppointments);
         else appointmentsData = [];
         
         renderDoctors();
-        renderForumPosts();
         renderReviews();
         updateDoctorSelect();
         updateMedecinSelect();
         updateRdvSelect();
         updateFollowupDoctorSelect();
         loadUpcomingConsultations();
+        document.querySelectorAll('[id^="comments-list-"]').forEach((element) => {
+            loadComments(element.id.replace('comments-list-', ''));
+        });
     }
     
     function updateMedecinSelect() {
@@ -2912,7 +2639,7 @@ function showFrontNotification(msg, isError = false) {
         e.target.reset();
     });
     
-    document.getElementById('submitReviewForm')?.addEventListener('submit', (e) => {
+    document.getElementById('submitReviewForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if(!currentPatient) {
             showNotification('Veuillez vous connecter pour donner votre avis', true);
@@ -2926,21 +2653,41 @@ function showFrontNotification(msg, isError = false) {
         
         const doctorId = parseInt(document.getElementById('reviewDoctorId').value);
         const doctor = doctorsData.find(d => d.id === doctorId);
+        const comment = document.getElementById('reviewComment').value.trim();
         if(!doctor) { showNotification('Veuillez sélectionner un médecin', true); return; }
         
+        if(comment.length < 10) { showNotification('Votre avis doit contenir au moins 10 caracteres', true); return; }
+
         const newReview = {
             id: Date.now(),
             patient_name: currentPatient.name,
             doctor_id: doctorId,
             doctor_name: doctor.name,
             rating: rating,
-            comment: document.getElementById('reviewComment').value,
+            comment: comment,
             date: new Date().toLocaleDateString('fr-FR'),
             status: 'pending'
         };
+        try {
+            const response = await fetch('/globalhealth-connect1/api/reviews.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newReview)
+            });
+            const result = await response.json();
+            if (!result.success) {
+                showNotification(result.error || 'Erreur lors de l envoi de l avis', true);
+                return;
+            }
+            showNotification(result.mail?.success
+                ? 'Merci pour votre avis ! Un email a ete envoye au medecin.'
+                : 'Avis publie, mais l email n a pas pu etre envoye. Verifiez la configuration mail XAMPP.');
+        } catch (error) {
+            showNotification('Avis non envoye : ' + error.message, true);
+            return;
+        }
         reviewsData.push(newReview);
         localStorage.setItem('globalhealth_reviews', JSON.stringify(reviewsData));
-        showNotification('Merci pour votre avis ! Il sera publié après modération par l\'administrateur.');
         e.target.reset();
         document.querySelectorAll('input[name="reviewRating"]').forEach(r => r.checked = false);
         renderReviews();
@@ -3001,6 +2748,51 @@ function showFrontNotification(msg, isError = false) {
         }
     });
 </script>
+
+<script>
+const EMOJIS = [
+    '😊','😄','😂','❤️','👍','🙏','✨','🔥','💪','😍',
+    '🎉','😎','🤔','😢','😡','👏','💯','🌟','🤝','😷',
+    '🏥','💊','🩺','🩻','🧬','🫀','🫁','🧠','💉','🩹',
+    '🍎','🥦','🥕','💧','🏃','🧘','😴','🌡️','⚕️','🏋️',
+    '👨‍⚕️','👩‍⚕️','🧑‍⚕️','📋','📊','💡','⚠️','✅','❌','📅'
+];
+
+function buildEmojiPanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel && panel.innerHTML === '') {
+        panel.innerHTML = EMOJIS.map(e =>
+            `<span onclick="insertEmoji(event, '${panelId}')" data-emoji="${e}">${e}</span>`
+        ).join('');
+    }
+}
+
+function toggleEmojiPicker(textareaId, panelId) {
+    buildEmojiPanel(panelId);
+    const panel = document.getElementById(panelId);
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+    panel.dataset.target = textareaId;
+}
+
+function insertEmoji(e, panelId) {
+    const emoji = e.currentTarget.dataset.emoji;
+    const panel = document.getElementById(panelId);
+    const textarea = document.getElementById(panel.dataset.target);
+    if (!textarea) return;
+    const pos = textarea.selectionStart;
+    const val = textarea.value;
+    textarea.value = val.slice(0, pos) + emoji + val.slice(pos);
+    textarea.selectionStart = textarea.selectionEnd = pos + emoji.length;
+    textarea.focus();
+    panel.style.display = 'none';
+}
+
+// Fermer le panel en cliquant ailleurs
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.emoji-trigger-btn') && !e.target.closest('.emoji-trigger-btn-inline') && !e.target.closest('.emoji-panel')) {
+        document.querySelectorAll('.emoji-panel').forEach(p => p.style.display = 'none');
+    }
+});
+</script>
 </body>
 </html>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950

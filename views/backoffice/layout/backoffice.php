@@ -1,45 +1,80 @@
 <?php
-<<<<<<< HEAD
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../../config/paths.php';
 require_once __DIR__ . '/../../../config/database.php';
 require_once __DIR__ . '/../../../models/Publication.php';
 require_once __DIR__ . '/../../../models/Commentaire.php';
+require_once __DIR__ . '/../../../models/Avis.php';
+require_once __DIR__ . '/../../../services/ForumModerationService.php';
+require_once __DIR__ . '/../../../services/MailService.php';
 
-// Start session
+$usersApiBase = gh_users_api_base();
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Ensure 'statut' column exists in publication table (run once)
 try {
-    $pdo_init = config::getConnexion();
-    $col_check = $pdo_init->query("SHOW COLUMNS FROM publication LIKE 'statut'");
-    if ($col_check->rowCount() === 0) {
-        $pdo_init->exec("ALTER TABLE publication ADD COLUMN statut ENUM('approved','blocked') NOT NULL DEFAULT 'approved'");
-    }
-} catch (Exception $e) {}
+    $pdoInit = config::getConnexion();
+    ForumModerationService::ensureForumSchema($pdoInit);
+    Avis::ensureSchema($pdoInit);
+} catch (Exception $e) {
+}
 
-// Handle AJAX requests - set JSON header only for API actions
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
+
+function currentForumUserId(): int
+{
+    return (int) ($_SESSION['user_id'] ?? 0);
+}
+
+function userOwnsPublication(PDO $pdo, int $publicationId, int $userId): bool
+{
+    if ($publicationId <= 0 || $userId <= 0) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT 1
+        FROM publication p
+        INNER JOIN medecin m ON m.id_medecin = p.id_medecin
+        WHERE p.id_publication = ? AND m.id_user = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$publicationId, $userId]);
+    return (bool) $stmt->fetchColumn();
+}
+
+function userOwnsComment(PDO $pdo, int $commentId, int $userId): bool
+{
+    if ($commentId <= 0 || $userId <= 0) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare("SELECT 1 FROM commentaire WHERE id_commentaire = ? AND id_user = ? LIMIT 1");
+    $stmt->execute([$commentId, $userId]);
+    return (bool) $stmt->fetchColumn();
+}
 
 if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'GET')) {
     header('Content-Type: application/json');
-    
+
     $input = json_decode(file_get_contents('php://input'), true) ?? $_REQUEST;
 
-    // Handle publication creation
+
     if ($action === 'add-publication') {
         try {
             if (empty($input['id_medecin']) || empty($input['contenu'])) {
-                echo json_encode(['success' => false, 'error' => 'Données manquantes']);
+                echo json_encode(['success' => false, 'error' => 'Donn??es manquantes']);
                 exit;
             }
 
-            // Validate user exists (médecin ou patient)
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id_user FROM utilisateur WHERE id_user = ?");
             $stmt->execute([$input['id_medecin']]);
             if (!$stmt->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'L\'utilisateur sélectionné n\'existe pas']);
+                echo json_encode(['success' => false, 'error' => 'L\'utilisateur s??lectionn?? n\'existe pas']);
                 exit;
             }
 
@@ -47,7 +82,7 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
             $publication->setIdMedecin($input['id_medecin']);
             $publication->setContenu($input['contenu']);
             $publication->setDatePublication(date('Y-m-d H:i:s'));
-            
+
             if (!empty($input['url_image'])) {
                 $publication->setUrlImage($input['url_image']);
             }
@@ -55,17 +90,13 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                 $publication->setUrlVideo($input['url_video']);
             }
 
-            $result = $publication->create();
+            $analysis = ForumModerationService::analyze((string)$input['contenu']);
+            ForumModerationService::applyAnalysisToPublication($publication, $analysis);
 
-            if ($result['success']) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Publication créée avec succès',
-                    'id' => $result['id']
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la création']);
-            }
+            $result = $publication->create();
+            echo json_encode($result['success']
+                ? ['success' => true, 'message' => 'Publication cr????e avec succ??s', 'id' => $result['id'], 'moderation' => $analysis]
+                : ['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la cr??ation']);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -73,7 +104,6 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle publication deletion
     if ($action === 'delete-publication') {
         try {
             if (empty($input['id'])) {
@@ -81,57 +111,88 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                 exit;
             }
 
-            $publication = new Publication();
-            if ($publication->findById($input['id'])) {
-                $result = $publication->delete();
-                if ($result['success']) {
-                    echo json_encode(['success' => true, 'message' => 'Publication supprimée']);
-                } else {
-                    echo json_encode(['success' => false, 'error' => $result['error']]);
-                }
-            } else {
-                echo json_encode(['success' => false, 'error' => 'Publication non trouvée']);
+            $pdo = config::getConnexion();
+            $publicationId = (int) $input['id'];
+            $userId = currentForumUserId();
+            if ($userId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Utilisateur non connect??']);
+                exit;
             }
+            if (!userOwnsPublication($pdo, $publicationId, $userId)) {
+                echo json_encode(['success' => false, 'error' => 'Action non autoris??e']);
+                exit;
+            }
+
+            $publication = new Publication();
+            if (!$publication->findById($publicationId)) {
+                echo json_encode(['success' => false, 'error' => 'Publication non trouv??e']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("DELETE FROM commentaire WHERE id_publication = ?");
+            $stmt->execute([$publicationId]);
+            $result = $publication->delete();
+            if (!($result['success'] ?? false)) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la suppression']);
+                exit;
+            }
+            $pdo->commit();
+            echo json_encode(['success' => true, 'message' => 'Publication supprim??e']);
             exit;
         } catch (Exception $e) {
+            if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             exit;
         }
     }
 
-    // Handle publication update
     if ($action === 'update-publication') {
         try {
-            if (empty($input['id']) || empty($input['contenu'])) {
+            $data = !empty($_POST) ? $_POST : $input;
+            if (empty($data['id']) || empty($data['contenu'])) {
                 echo json_encode(['success' => false, 'error' => 'Données manquantes']);
                 exit;
             }
 
+            $pdo = config::getConnexion();
+            $publicationId = (int) $data['id'];
+
             $publication = new Publication();
-            if (!$publication->findById($input['id'])) {
+            if (!$publication->findById($publicationId)) {
                 echo json_encode(['success' => false, 'error' => 'Publication non trouvée']);
                 exit;
             }
 
-            $publication->setContenu($input['contenu']);
-            if (!empty($input['url_image'])) {
-                $publication->setUrlImage($input['url_image']);
-            } else {
-                $publication->set('url_image', null);
+            $publication->setContenu($data['contenu']);
+
+            // Gestion upload nouvelle image
+            if (!empty($_FILES['image']['tmp_name'])) {
+                $uploadDir = __DIR__ . '/../../../uploads/publications/';
+                $ext = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+                if (in_array($ext, $allowed)) {
+                    $filename = uniqid('pub_', true) . '.' . $ext;
+                    if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $filename)) {
+                        $publication->setUrlImage('/globalhealth-connect1/uploads/publications/' . $filename);
+                    }
+                }
             }
-            if (!empty($input['url_video'])) {
-                $publication->setUrlVideo($input['url_video']);
-            } else {
-                $publication->set('url_video', null);
+
+            if (array_key_exists('url_video', $data)) {
+                $publication->set('url_video', !empty($data['url_video']) ? $data['url_video'] : null);
             }
+
+            $analysis = ForumModerationService::analyze((string)$data['contenu']);
+            ForumModerationService::applyAnalysisToPublication($publication, $analysis);
 
             $result = $publication->update();
-
-            if ($result['success']) {
-                echo json_encode(['success' => true, 'message' => 'Publication modifiée avec succès']);
-            } else {
-                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la modification']);
-            }
+            echo json_encode($result['success']
+                ? ['success' => true, 'message' => 'Publication modifiée avec succès']
+                : ['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la modification']);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -139,24 +200,25 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle toggle publication status (block / unblock)
     if ($action === 'toggle-publication-status') {
         try {
             if (empty($input['id'])) {
                 echo json_encode(['success' => false, 'error' => 'ID manquant']);
                 exit;
             }
+
             $pdo = config::getConnexion();
             $stmt = $pdo->prepare("SELECT statut FROM publication WHERE id_publication = ?");
-            $stmt->execute([(int)$input['id']]);
+            $stmt->execute([(int) $input['id']]);
             $row = $stmt->fetch();
             if (!$row) {
                 echo json_encode(['success' => false, 'error' => 'Publication non trouvée']);
                 exit;
             }
-            $newStatut = ($row['statut'] === 'approved') ? 'blocked' : 'approved';
-            $stmt = $pdo->prepare("UPDATE publication SET statut = ? WHERE id_publication = ?");
-            $stmt->execute([$newStatut, (int)$input['id']]);
+
+            $newStatut = $row['statut'] === 'approved' ? 'blocked' : 'approved';
+            $moderationStatus = $newStatut === 'approved' ? 'safe' : 'blocked';
+            ForumModerationService::setModerationStatus($pdo, (int) $input['id'], $moderationStatus);
             echo json_encode(['success' => true, 'statut' => $newStatut]);
             exit;
         } catch (Exception $e) {
@@ -165,12 +227,10 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get publications
     if ($action === 'get-publications') {
         try {
             $publication = new Publication();
-            $data = $publication->getAll(100, 0);
-            echo json_encode(['success' => true, 'data' => $data]);
+            echo json_encode(['success' => true, 'data' => $publication->getAll(100, 0)]);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -178,14 +238,12 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get doctors
     if ($action === 'get-doctors') {
         try {
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("SELECT id, nom, prenom, email FROM utilisateur WHERE id_role = 2 ORDER BY nom ASC");
+            $stmt = $pdo->prepare("SELECT id_user, nom, prenom, email FROM utilisateur WHERE id_role = 2 ORDER BY nom ASC");
             $stmt->execute();
-            $doctors = $stmt->fetchAll();
-            echo json_encode(['success' => true, 'data' => $doctors]);
+            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -193,13 +251,8 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get current user
     if ($action === 'get-current-user') {
         try {
-            if (session_status() === PHP_SESSION_NONE) {
-                session_start();
-            }
-            
             $userId = $_SESSION['user_id'] ?? null;
             if (!$userId) {
                 echo json_encode(['success' => false, 'error' => 'Utilisateur non connecté']);
@@ -207,15 +260,13 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
             }
 
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("SELECT id, nom, prenom, email, id_role FROM utilisateur WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT id_user, nom, prenom, email, id_role FROM utilisateur WHERE id_user = ?");
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
 
-            if ($user) {
-                echo json_encode(['success' => true, 'data' => $user]);
-            } else {
-                echo json_encode(['success' => false, 'error' => 'Utilisateur non trouvé']);
-            }
+            echo json_encode($user
+                ? ['success' => true, 'data' => $user]
+                : ['success' => false, 'error' => 'Utilisateur non trouvé']);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -223,27 +274,26 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle add comment
     if ($action === 'add-comment') {
         try {
-            if (empty($input['id_publication']) || empty($input['contenu']) || empty($input['id_user'])) {
+            if (empty($input['id_publication']) || empty($input['contenu'])) {
                 echo json_encode(['success' => false, 'error' => 'Données manquantes']);
                 exit;
             }
 
             $pdo = config::getConnexion();
-            
-            // Validate publication exists
+            ForumModerationService::ensureCommentSchema($pdo);
+            $commentUserId = (int) ($_SESSION['user_id'] ?? ($input['id_user'] ?? 0));
+
             $stmt = $pdo->prepare("SELECT id_publication FROM publication WHERE id_publication = ?");
-            $stmt->execute([(int)$input['id_publication']]);
+            $stmt->execute([(int) $input['id_publication']]);
             if (!$stmt->fetch()) {
                 echo json_encode(['success' => false, 'error' => 'Publication non trouvée']);
                 exit;
             }
 
-            // Validate user exists
-            $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE id = ?");
-            $stmt->execute([(int)$input['id_user']]);
+            $stmt = $pdo->prepare("SELECT id_user FROM utilisateur WHERE id_user = ?");
+            $stmt->execute([$commentUserId]);
             if (!$stmt->fetch()) {
                 echo json_encode(['success' => false, 'error' => 'Utilisateur non trouvé']);
                 exit;
@@ -251,22 +301,25 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
 
             $commentaire = new Commentaire();
             $commentaire->setIdPublication($input['id_publication']);
-            $commentaire->setIdUser($input['id_user']);
+            $commentaire->setIdUser($commentUserId);
             $commentaire->setContenu($input['contenu']);
-            $commentaire->setStatut('approved');
             $commentaire->setDatePublication(date('Y-m-d H:i:s'));
+            $analysis = ForumModerationService::analyze((string)$input['contenu']);
+            ForumModerationService::applyAnalysisToComment($commentaire, $analysis);
 
             $result = $commentaire->create();
-
             if ($result['success']) {
                 echo json_encode([
                     'success' => true,
-                    'message' => 'Commentaire créé avec succès',
-                    'id' => $result['id']
+                    'message' => 'Commentaire cree avec succes',
+                    'id' => $result['id'],
+                    'moderation' => $analysis,
                 ]);
-            } else {
-                echo json_encode(['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la création']);
+                exit;
             }
+            echo json_encode($result['success']
+                ? ['success' => true, 'message' => 'Commentaire créé avec succès', 'id' => $result['id']]
+                : ['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la création']);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -274,7 +327,6 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get comments
     if ($action === 'get-comments') {
         try {
             if (empty($input['id_publication'])) {
@@ -284,15 +336,14 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
 
             $pdo = config::getConnexion();
             $stmt = $pdo->prepare("
-                SELECT c.*, u.nom, u.prenom 
+                SELECT c.*, u.nom, u.prenom
                 FROM commentaire c
-                JOIN utilisateur u ON c.id_user = u.id
-                WHERE c.id_publication = ? AND c.statut = 'approved'
+                JOIN utilisateur u ON c.id_user = u.id_user
+                WHERE c.id_publication = ? AND c.statut = 'publie'
                 ORDER BY c.date_publication DESC
             ");
-            $stmt->execute([(int)$input['id_publication']]);
-            $comments = $stmt->fetchAll();
-            echo json_encode(['success' => true, 'data' => $comments]);
+            $stmt->execute([(int) $input['id_publication']]);
+            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -300,25 +351,27 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get all comments (for backoffice comments module)
     if ($action === 'get-all-comments') {
         try {
             $pdo = config::getConnexion();
+            ForumModerationService::ensureCommentSchema($pdo);
             $stmt = $pdo->prepare("
                 SELECT c.id_commentaire, c.contenu, c.statut, c.date_publication, c.id_publication,
+                       c.moderation_status, c.toxicity_score, c.sensitive_score, c.medical_risk_score,
+                       c.moderation_reason, c.moderation_source, c.flagged_at, c.reviewed_at,
                        CONCAT(u.prenom, ' ', u.nom) AS user_name,
                        SUBSTRING(p.contenu, 1, 50) AS post_content,
                        CONCAT(med.prenom, ' ', med.nom) AS doctor_name
                 FROM commentaire c
-                JOIN utilisateur u ON c.id_user = u.id
+                JOIN utilisateur u ON c.id_user = u.id_user
                 JOIN publication p ON c.id_publication = p.id_publication
-                JOIN utilisateur med ON p.id_medecin = med.id
+                LEFT JOIN medecin m ON p.id_medecin = m.id_medecin
+                LEFT JOIN utilisateur med ON m.id_user = med.id_user
                 ORDER BY c.date_publication DESC
                 LIMIT 200
             ");
             $stmt->execute();
-            $comments = $stmt->fetchAll();
-            echo json_encode(['success' => true, 'data' => $comments]);
+            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -326,22 +379,46 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle update comment content (edit from frontoffice)
     if ($action === 'update-comment') {
         try {
             if (empty($input['id']) || empty($input['contenu'])) {
                 echo json_encode(['success' => false, 'error' => 'Données manquantes']);
                 exit;
             }
+
             $contenu = trim($input['contenu']);
             if (strlen($contenu) < 2) {
                 echo json_encode(['success' => false, 'error' => 'Le commentaire est trop court']);
                 exit;
             }
+
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("UPDATE commentaire SET contenu = ? WHERE id_commentaire = ?");
-            $stmt->execute([$contenu, (int)$input['id']]);
-            echo json_encode(['success' => true]);
+            ForumModerationService::ensureCommentSchema($pdo);
+            $commentId = (int) $input['id'];
+            $userId = currentForumUserId();
+            if ($userId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Utilisateur non connecté']);
+                exit;
+            }
+            if (!userOwnsComment($pdo, $commentId, $userId)) {
+                echo json_encode(['success' => false, 'error' => 'Action non autorisée']);
+                exit;
+            }
+
+            $commentaire = new Commentaire();
+            if (!$commentaire->findById($commentId)) {
+                echo json_encode(['success' => false, 'error' => 'Commentaire non trouvÃ©']);
+                exit;
+            }
+
+            $commentaire->setContenu($contenu);
+            $analysis = ForumModerationService::analyze($contenu);
+            ForumModerationService::applyAnalysisToComment($commentaire, $analysis);
+            $result = $commentaire->update();
+
+            echo json_encode($result['success']
+                ? ['success' => true, 'moderation' => $analysis]
+                : ['success' => false, 'error' => $result['error'] ?? 'Erreur lors de la modification']);
             exit;
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -349,21 +426,36 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle update comment status (approve / reject)
     if ($action === 'update-comment-status') {
         try {
             if (empty($input['id']) || empty($input['statut'])) {
                 echo json_encode(['success' => false, 'error' => 'Données manquantes']);
                 exit;
             }
-            $validStatuses = ['approved', 'pending', 'rejected'];
-            if (!in_array($input['statut'], $validStatuses)) {
+
+            $validStatuses = ['en_attente', 'publie', 'supprime'];
+            if (!in_array($input['statut'], $validStatuses, true)) {
                 echo json_encode(['success' => false, 'error' => 'Statut invalide']);
                 exit;
             }
+
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("UPDATE commentaire SET statut = ? WHERE id_commentaire = ?");
-            $stmt->execute([$input['statut'], (int)$input['id']]);
+            ForumModerationService::ensureCommentSchema($pdo);
+            $moderationStatus = $input['statut'] === 'publie' ? 'safe' : ($input['statut'] === 'supprime' ? 'blocked' : 'review');
+            $flaggedAtSql = $moderationStatus === 'safe' ? 'NULL' : 'COALESCE(flagged_at, NOW())';
+            $stmt = $pdo->prepare("
+                UPDATE commentaire
+                SET statut = :statut,
+                    moderation_status = :moderation_status,
+                    flagged_at = {$flaggedAtSql},
+                    reviewed_at = NOW()
+                WHERE id_commentaire = :id
+            ");
+            $stmt->execute([
+                'statut' => $input['statut'],
+                'moderation_status' => $moderationStatus,
+                'id' => (int) $input['id'],
+            ]);
             echo json_encode(['success' => true]);
             exit;
         } catch (Exception $e) {
@@ -372,16 +464,27 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle delete comment
     if ($action === 'delete-comment-db') {
         try {
             if (empty($input['id'])) {
                 echo json_encode(['success' => false, 'error' => 'ID manquant']);
                 exit;
             }
+
             $pdo = config::getConnexion();
+            $commentId = (int) $input['id'];
+            $userId = currentForumUserId();
+            if ($userId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Utilisateur non connecté']);
+                exit;
+            }
+            if (!userOwnsComment($pdo, $commentId, $userId)) {
+                echo json_encode(['success' => false, 'error' => 'Action non autorisée']);
+                exit;
+            }
+
             $stmt = $pdo->prepare("DELETE FROM commentaire WHERE id_commentaire = ?");
-            $stmt->execute([(int)$input['id']]);
+            $stmt->execute([$commentId]);
             echo json_encode(['success' => true]);
             exit;
         } catch (Exception $e) {
@@ -390,19 +493,245 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle get users
+    if ($action === 'get-all-publications') {
+        try {
+            $pdo = config::getConnexion();
+            $stmt = $pdo->prepare("
+                SELECT p.id_publication, p.contenu, p.date_publication, p.statut, p.url_image, p.url_video,
+                       p.moderation_status, p.toxicity_score, p.sensitive_score, p.medical_risk_score,
+                       p.moderation_reason, p.moderation_source, p.flagged_at, p.reviewed_at,
+                       CONCAT(u.prenom, ' ', u.nom) AS doctor_name
+                FROM publication p
+                LEFT JOIN medecin m ON m.id_medecin = p.id_medecin
+                LEFT JOIN utilisateur u ON u.id_user = m.id_user
+                ORDER BY p.date_publication DESC
+                LIMIT 200
+            ");
+            $stmt->execute();
+            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'get-moderation-publications') {
+        try {
+            $pdo = config::getConnexion();
+            ForumModerationService::ensurePublicationSchema($pdo);
+            $stmt = $pdo->prepare("
+                SELECT p.id_publication, p.contenu, p.date_publication, p.statut, p.url_image, p.url_video,
+                       p.moderation_status, p.toxicity_score, p.sensitive_score, p.medical_risk_score,
+                       p.moderation_reason, p.moderation_source, p.flagged_at, p.reviewed_at,
+                       CONCAT(u.prenom, ' ', u.nom) AS doctor_name
+                FROM publication p
+                LEFT JOIN medecin m ON m.id_medecin = p.id_medecin
+                LEFT JOIN utilisateur u ON u.id_user = m.id_user
+                WHERE p.moderation_status IN ('review', 'blocked')
+                ORDER BY COALESCE(p.flagged_at, p.date_publication) DESC
+                LIMIT 100
+            ");
+            $stmt->execute();
+            echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'set-publication-moderation-status') {
+        try {
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'error' => 'ID manquant']);
+                exit;
+            }
+
+            $pdo = config::getConnexion();
+            ForumModerationService::ensurePublicationSchema($pdo);
+            $status = (string)($input['status'] ?? 'review');
+            ForumModerationService::setModerationStatus($pdo, (int)$input['id'], $status);
+            echo json_encode([
+                'success' => true,
+                'moderation_status' => $status,
+                'statut' => $status === 'safe' ? 'approved' : 'blocked',
+            ]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'admin-delete-publication') {
+        try {
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'error' => 'ID manquant']);
+                exit;
+            }
+            $pdo = config::getConnexion();
+            $publicationId = (int) $input['id'];
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM commentaire WHERE id_publication = ?")->execute([$publicationId]);
+            $pdo->prepare("DELETE FROM publication WHERE id_publication = ?")->execute([$publicationId]);
+            $pdo->commit();
+            echo json_encode(['success' => true]);
+            exit;
+        } catch (Exception $e) {
+            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'admin-delete-comment') {
+        try {
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'error' => 'ID manquant']);
+                exit;
+            }
+            $pdo = config::getConnexion();
+            $pdo->prepare("DELETE FROM commentaire WHERE id_commentaire = ?")->execute([(int) $input['id']]);
+            echo json_encode(['success' => true]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'admin-update-comment-status') {
+        try {
+            if (empty($input['id']) || !isset($input['statut'])) {
+                echo json_encode(['success' => false, 'error' => 'Données manquantes']);
+                exit;
+            }
+            $validStatuses = ['en_attente', 'publie', 'supprime'];
+            if (!in_array($input['statut'], $validStatuses, true)) {
+                echo json_encode(['success' => false, 'error' => 'Statut invalide']);
+                exit;
+            }
+            $pdo = config::getConnexion();
+            ForumModerationService::ensureCommentSchema($pdo);
+            $moderationStatus = $input['statut'] === 'publie' ? 'safe' : ($input['statut'] === 'supprime' ? 'blocked' : 'review');
+            $flaggedAtSql = $moderationStatus === 'safe' ? 'NULL' : 'COALESCE(flagged_at, NOW())';
+            $stmt = $pdo->prepare("
+                UPDATE commentaire
+                SET statut = :statut,
+                    moderation_status = :moderation_status,
+                    flagged_at = {$flaggedAtSql},
+                    reviewed_at = NOW()
+                WHERE id_commentaire = :id
+            ");
+            $stmt->execute([
+                'statut' => $input['statut'],
+                'moderation_status' => $moderationStatus,
+                'id' => (int) $input['id'],
+            ]);
+            echo json_encode(['success' => true]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'get-all-reviews') {
+        try {
+            $pdo = config::getConnexion();
+            echo json_encode(['success' => true, 'data' => Avis::all($pdo)]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'admin-update-review-status') {
+        try {
+            if (empty($input['id']) || empty($input['statut'])) {
+                echo json_encode(['success' => false, 'error' => 'Donnees manquantes']);
+                exit;
+            }
+            $pdo = config::getConnexion();
+            Avis::updateStatus($pdo, (int)$input['id'], (string)$input['statut']);
+            echo json_encode(['success' => true]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'admin-delete-review') {
+        try {
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'error' => 'ID manquant']);
+                exit;
+            }
+            $pdo = config::getConnexion();
+            Avis::delete($pdo, (int)$input['id']);
+            echo json_encode(['success' => true]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    if ($action === 'notify-review-patient') {
+        try {
+            if (empty($input['id_patient']) || empty($input['message'])) {
+                echo json_encode(['success' => false, 'error' => 'Patient et message obligatoires']);
+                exit;
+            }
+
+            $pdo = config::getConnexion();
+            $stmt = $pdo->prepare("
+                SELECT id_user, nom, prenom, email
+                FROM utilisateur
+                WHERE id_user = ? AND id_role = 1
+                LIMIT 1
+            ");
+            $stmt->execute([(int)$input['id_patient']]);
+            $patient = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$patient) {
+                echo json_encode(['success' => false, 'error' => 'Patient introuvable']);
+                exit;
+            }
+
+            $mail = MailService::sendPatientNotification([
+                'patient_name' => trim((string)$patient['prenom'] . ' ' . (string)$patient['nom']),
+                'patient_email' => (string)$patient['email'],
+                'message' => (string)$input['message'],
+            ]);
+
+            echo json_encode([
+                'success' => $mail['success'],
+                'message' => $mail['success'] ? 'Notification envoyee au patient' : 'Email non envoye',
+                'mail' => $mail,
+            ]);
+            exit;
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+    }
+
     if ($action === 'get-users') {
         try {
             $pdo = config::getConnexion();
-            $stmt = $pdo->prepare("SELECT id, nom, prenom FROM utilisateur ORDER BY id LIMIT 10");
+            $stmt = $pdo->prepare("SELECT id_user, nom, prenom FROM utilisateur ORDER BY id_user LIMIT 10");
             $stmt->execute();
             $users = $stmt->fetchAll();
-            
+
             if (!$users) {
                 echo json_encode(['success' => false, 'error' => 'No users found']);
                 exit;
             }
-            
+
             echo json_encode(['success' => true, 'data' => $users]);
             exit;
         } catch (Exception $e) {
@@ -411,7 +740,6 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 
-    // Handle add user/doctor
     if ($action === 'add-user-db') {
         try {
             if (empty($input['name']) || empty($input['email'])) {
@@ -420,8 +748,6 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
             }
 
             $pdo = config::getConnexion();
-            
-            // Check if email already exists
             $stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE email = ?");
             $stmt->execute([$input['email']]);
             if ($stmt->fetch()) {
@@ -429,25 +755,22 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                 exit;
             }
 
-            // Determine role ID
-            $roleId = 3; // Default: patient/user
-            if ($input['role'] === 'doctor') {
-                $roleId = 2; // Doctor
-            } elseif ($input['role'] === 'admin') {
-                $roleId = 1; // Admin
+            $roleId = 3;
+            if (($input['role'] ?? null) === 'doctor') {
+                $roleId = 2;
+            } elseif (($input['role'] ?? null) === 'admin') {
+                $roleId = 1;
             }
 
-            // Split name into nom and prenom
-            $names = explode(' ', $input['name'], 2);
+            $names = explode(' ', trim((string) $input['name']), 2);
             $prenom = array_pop($names);
             $nom = array_pop($names) ?: $prenom;
 
-            // Insert into database
             $stmt = $pdo->prepare("
                 INSERT INTO utilisateur (nom, prenom, email, telephone, password, id_role, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
-            
+
             $password = password_hash($input['password'] ?? 'password123', PASSWORD_DEFAULT);
             $stmt->execute([
                 $nom,
@@ -455,11 +778,10 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                 $input['email'],
                 $input['phone'] ?? null,
                 $password,
-                $roleId
+                $roleId,
             ]);
 
             $userId = $pdo->lastInsertId();
-            
             echo json_encode([
                 'success' => true,
                 'message' => 'Utilisateur créé avec succès en base de données',
@@ -468,8 +790,8 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
                     'id' => $userId,
                     'nom' => $nom,
                     'prenom' => $prenom,
-                    'email' => $input['email']
-                ]
+                    'email' => $input['email'],
+                ],
             ]);
             exit;
         } catch (Exception $e) {
@@ -478,11 +800,6 @@ if ($action && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHO
         }
     }
 }
-=======
-declare(strict_types=1);
-require_once __DIR__ . '/../../../config/paths.php';
-$usersApiBase = gh_users_api_base();
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -643,8 +960,6 @@ $usersApiBase = gh_users_api_base();
             text-align: left;
             border-bottom: 1px solid #f0f0f0;
         }
-<<<<<<< HEAD
-=======
         .data-table td a[href^="mailto:"] {
             color: var(--medical-blue);
             text-decoration: none;
@@ -653,7 +968,6 @@ $usersApiBase = gh_users_api_base();
         .data-table td a[href^="mailto:"]:hover { text-decoration: underline; }
         .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .table-scroll .data-table { min-width: 920px; }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         .data-table th {
             font-weight: 600;
             color: var(--medical-blue);
@@ -667,12 +981,9 @@ $usersApiBase = gh_users_api_base();
             display: inline-block;
         }
         .status-approved { background: #e8f8f0; color: #2ecc71; }
-<<<<<<< HEAD
-        .status-blocked  { background: #fdecea; color: #e74c3c; }
-        .status-rejected { background: #fdecea; color: #e74c3c; }
-=======
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         .status-pending { background: #fff3e0; color: #f39c12; }
+        .status-warning { background: #fff3e0; color: #f39c12; }
+        .status-danger { background: #fee; color: #e74c3c; }
         .status-reported { background: #fee; color: #e74c3c; }
         
         .icon-btn {
@@ -687,14 +998,8 @@ $usersApiBase = gh_users_api_base();
         .icon-btn:hover { background: var(--medical-gray); transform: scale(1.05); }
         .icon-btn.approve { color: #2ecc71; }
         .icon-btn.delete { color: #e74c3c; }
-<<<<<<< HEAD
-        .icon-btn.edit { color: #f39c12; }
-        .icon-btn.flag { color: #e67e22; }
-        .icon-btn.show { color: var(--medical-blue); }
-=======
         .icon-btn.edit { color: var(--medical-blue); }
         .icon-btn.flag { color: #f39c12; }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         
         .btn-medical {
             background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
@@ -788,40 +1093,11 @@ $usersApiBase = gh_users_api_base();
             margin-bottom: 10px;
             color: var(--medical-blue);
         }
-<<<<<<< HEAD
-
-        /* Styles de validation */
-        .is-invalid {
-            border-color: #dc3545 !important;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right calc(0.375em + 0.1875rem) center;
-            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-        }
-        .invalid-feedback {
-            display: block;
-            width: 100%;
-            margin-top: 0.25rem;
-            font-size: 0.875em;
-            color: #dc3545;
-        }
-        .is-valid {
-            border-color: #2ecc71 !important;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%232ecc71' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right calc(0.375em + 0.1875rem) center;
-            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-        }
-=======
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     </style>
 </head>
 <body>
 
-<<<<<<< HEAD
-=======
 <!-- Accès direct - Pas de login -->
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <div id="mainContent">
     <div class="dashboard-container">
         <div class="sidebar">
@@ -833,18 +1109,15 @@ $usersApiBase = gh_users_api_base();
                 <li><a onclick="switchModule('dashboard');"><i class="fas fa-chart-line"></i> Dashboard</a></li>
                 <li><a onclick="switchModule('users');"><i class="fas fa-users"></i> Utilisateurs</a></li>
                 <li><a onclick="switchModule('forum');"><i class="fas fa-newspaper"></i> Publications</a></li>
+                <li><a onclick="switchModule('moderation');"><i class="fas fa-shield-alt"></i> Modération IA</a></li>
                 <li><a onclick="switchModule('comments');"><i class="fas fa-comments"></i> Commentaires</a></li>
                 <li><a onclick="switchModule('reviews');"><i class="fas fa-star"></i> Avis Patients</a></li>
                 <li><a onclick="switchModule('appointments');"><i class="fas fa-calendar-check"></i> Rendez-vous</a></li>
                 <li><a onclick="switchModule('consultations');"><i class="fas fa-stethoscope"></i> Consultation & Suivi</a></li>
             </ul>
-<<<<<<< HEAD
-            <div class="sidebar-footer"></div>
-=======
             <div class="sidebar-footer">
                 <!-- Bouton réinitialiser supprimé -->
             </div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         </div>
         
         <div class="main-content">
@@ -861,54 +1134,12 @@ $usersApiBase = gh_users_api_base();
 
 <!-- Modals CRUD -->
 <div class="modal fade" id="addPostModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title"><i class="fas fa-newspaper me-2"></i>Ajouter une publication</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<<<<<<< HEAD
-<div class="modal-body"><form id="addPostForm"><div class="mb-3"><label>Médecin</label><select class="form-select form-control-custom" id="postDoctorId"></select></div>
-<div class="mb-3"><label>Contenu</label><textarea class="form-control form-control-custom" id="postContent" rows="3" placeholder="Partagez votre expertise médicale..."></textarea></div>
-=======
 <div class="modal-body"><form id="addPostForm"><div class="mb-3"><label>Médecin</label><select class="form-select form-control-custom" id="postDoctorId" required></select></div>
 <div class="mb-3"><label>Contenu</label><textarea class="form-control form-control-custom" id="postContent" rows="3" placeholder="Partagez votre expertise médicale..." required></textarea></div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
 <div class="mb-3"><label>Image (URL)</label><input type="text" class="form-control form-control-custom" id="postImage" placeholder="https://..."></div>
 <div class="mb-3"><label>Vidéo (URL)</label><input type="text" class="form-control form-control-custom" id="postVideo" placeholder="https://..."></div>
 <button type="submit" class="btn btn-medical w-100">Publier</button></form></div></div></div></div>
 
-<<<<<<< HEAD
-<div class="modal fade" id="addUserModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title">Ajouter un utilisateur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><form id="addUserForm"><div class="mb-3"><label>Nom complet</label><input type="text" class="form-control form-control-custom" id="newUserName"></div>
-<div class="mb-3"><label>Email</label><input type="email" class="form-control form-control-custom" id="newUserEmail"></div>
-<div class="mb-3"><label>Téléphone</label><input type="tel" class="form-control form-control-custom" id="newUserPhone"></div>
-<div class="mb-3"><label>Rôle</label><select class="form-select form-control-custom" id="newUserRole" onchange="toggleSpecialtyField()"><option value="patient">Patient</option><option value="doctor">Médecin</option></select></div>
-<div class="mb-3" id="specialtyField" style="display:none"><label>Spécialité</label><input type="text" class="form-control form-control-custom" id="newUserSpecialty" placeholder="Ex: Cardiologue"></div>
-<button type="submit" class="btn btn-medical w-100">Créer</button></form></div></div></div></div>
-
-<div class="modal fade" id="editUserModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title">Modifier utilisateur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><form id="editUserForm"><input type="hidden" id="editUserId"><div class="mb-3"><label>Nom complet</label><input type="text" class="form-control form-control-custom" id="editUserName"></div>
-<div class="mb-3"><label>Email</label><input type="email" class="form-control form-control-custom" id="editUserEmail"></div>
-<div class="mb-3"><label>Téléphone</label><input type="tel" class="form-control form-control-custom" id="editUserPhone"></div>
-<div class="mb-3"><label>Spécialité (médecin)</label><input type="text" class="form-control form-control-custom" id="editUserSpecialty"></div>
-<button type="submit" class="btn btn-medical w-100">Modifier</button></form></div></div></div></div>
-
-<div class="modal fade" id="editPostModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modifier la publication</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><form id="editPostForm"><input type="hidden" id="editPostId"><div class="mb-3"><label>Contenu</label><textarea class="form-control form-control-custom" id="editPostContent" rows="4"></textarea></div>
-<div class="mb-3"><label>Image (URL)</label><input type="text" class="form-control form-control-custom" id="editPostImage" placeholder="https://..."></div>
-<div class="mb-3"><label>Vidéo (URL)</label><input type="text" class="form-control form-control-custom" id="editPostVideo" placeholder="https://..."></div>
-<button type="submit" class="btn btn-medical w-100">Enregistrer les modifications</button></form></div></div></div></div>
-
-<div class="modal fade" id="notifyReviewModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title">Notifier un patient</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><form id="notifyReviewForm"><div class="mb-3"><label>Patient</label><select class="form-select form-control-custom" id="notifyPatientId"></select></div>
-<div class="mb-3"><label>Message</label><textarea class="form-control form-control-custom" id="notifyMessage" rows="3">📝 Nous espérons que votre consultation s'est bien passée ! N'oubliez pas de donner votre avis et de noter votre médecin sur 5 étoiles. 🌟</textarea></div>
-<button type="submit" class="btn btn-medical w-100">Envoyer la notification</button></form></div></div></div></div>
-
-<div class="modal fade" id="addConsultationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title"><i class="fas fa-stethoscope me-2"></i>Ajouter une consultation / suivi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><form id="addConsultationForm"><div class="row g-3">
-    <div class="col-md-6"><label>ID Patient</label><input type="text" class="form-control form-control-custom" id="consultation_id_patient" placeholder="ID Patient"></div>
-    <div class="col-md-6"><label>ID Médecin</label><input type="text" class="form-control form-control-custom" id="consultation_id_medecin" placeholder="ID Médecin"></div>
-    <div class="col-md-6"><label>ID Rendez-vous</label><input type="text" class="form-control form-control-custom" id="consultation_id_rdv" placeholder="ID Rendez-vous"></div>
-    <div class="col-md-6"><label>Date de la consultation</label><input type="date" class="form-control form-control-custom" id="consultation_date"></div>
-    <div class="col-12"><label>Symptômes</label><textarea class="form-control form-control-custom" id="consultation_symptomes" rows="2" placeholder="Décrivez les symptômes..."></textarea></div>
-    <div class="col-12"><label>Diagnostic</label><textarea class="form-control form-control-custom" id="consultation_diagnostic" rows="2" placeholder="Diagnostic médical..."></textarea></div>
-    <div class="col-12"><label>Traitement prescrit</label><textarea class="form-control form-control-custom" id="consultation_traitement" rows="2" placeholder="Traitement prescrit..."></textarea></div>
-=======
 <div class="modal fade" id="addUserModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title">Ajouter un utilisateur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body"><form id="addUserForm" novalidate><div class="row g-3">
 <div class="col-md-6"><label>Nom</label><input type="text" class="form-control form-control-custom" id="newUserNom"></div>
@@ -971,7 +1202,6 @@ $usersApiBase = gh_users_api_base();
     <div class="col-12"><label>Symptômes</label><textarea class="form-control form-control-custom" id="consultation_symptomes" rows="2" placeholder="Décrivez les symptômes..." required></textarea></div>
     <div class="col-12"><label>Diagnostic</label><textarea class="form-control form-control-custom" id="consultation_diagnostic" rows="2" placeholder="Diagnostic médical..." required></textarea></div>
     <div class="col-12"><label>Traitement prescrit</label><textarea class="form-control form-control-custom" id="consultation_traitement" rows="2" placeholder="Traitement prescrit..." required></textarea></div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     <div class="col-12"><label>Ordonnance</label><textarea class="form-control form-control-custom" id="consultation_ordonnance" rows="3" placeholder="Ordonnance (médicaments, posologie, durée...)"></textarea></div>
     <div class="col-12"><label>Notes du médecin</label><textarea class="form-control form-control-custom" id="consultation_notes" rows="2" placeholder="Notes complémentaires..."></textarea></div>
     <div class="col-12"><label>Suivi / Évolution</label><textarea class="form-control form-control-custom" id="consultation_suivi" rows="3" placeholder="Suivi de l'évolution du patient..."></textarea></div>
@@ -980,21 +1210,12 @@ $usersApiBase = gh_users_api_base();
 
 <div class="modal fade" id="editConsultationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content modal-custom"><div class="modal-header border-0"><h5 class="modal-title"><i class="fas fa-edit me-2"></i>Modifier consultation / suivi</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body"><form id="editConsultationForm"><input type="hidden" id="editConsultationId"><div class="row g-3">
-<<<<<<< HEAD
-    <div class="col-md-6"><label>ID Patient</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_patient"></div>
-    <div class="col-md-6"><label>ID Médecin</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_medecin"></div>
-    <div class="col-md-6"><label>ID Rendez-vous</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_rdv"></div>
-    <div class="col-md-6"><label>Date de la consultation</label><input type="date" class="form-control form-control-custom" id="edit_consultation_date"></div>
-    <div class="col-12"><label>Symptômes</label><textarea class="form-control form-control-custom" id="edit_consultation_symptomes" rows="2"></textarea></div>
-    <div class="col-12"><label>Diagnostic</label><textarea class="form-control form-control-custom" id="edit_consultation_diagnostic" rows="2"></textarea></div>
-=======
     <div class="col-md-6"><label>ID Patient</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_patient" required></div>
     <div class="col-md-6"><label>ID Médecin</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_medecin" required></div>
     <div class="col-md-6"><label>ID Rendez-vous</label><input type="text" class="form-control form-control-custom" id="edit_consultation_id_rdv"></div>
     <div class="col-md-6"><label>Date de la consultation</label><input type="date" class="form-control form-control-custom" id="edit_consultation_date" required></div>
     <div class="col-12"><label>Symptômes</label><textarea class="form-control form-control-custom" id="edit_consultation_symptomes" rows="2" required></textarea></div>
     <div class="col-12"><label>Diagnostic</label><textarea class="form-control form-control-custom" id="edit_consultation_diagnostic" rows="2" required></textarea></div>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     <div class="col-12"><label>Traitement prescrit</label><textarea class="form-control form-control-custom" id="edit_consultation_traitement" rows="2"></textarea></div>
     <div class="col-12"><label>Ordonnance</label><textarea class="form-control form-control-custom" id="edit_consultation_ordonnance" rows="3"></textarea></div>
     <div class="col-12"><label>Notes du médecin</label><textarea class="form-control form-control-custom" id="edit_consultation_notes" rows="2"></textarea></div>
@@ -1005,27 +1226,18 @@ $usersApiBase = gh_users_api_base();
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // ============================================
-<<<<<<< HEAD
-    // DONNÉES PERSISTANTES ET FONCTIONS MÉTIER
-    // ============================================
-    let usersData = [];
-    let forumPosts = [];
-    let commentsData = [];
-=======
     // DONNÉES PERSISTANTES
     // ============================================
     let usersData = [];
     let forumPosts = [];
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
+    let moderationPosts = [];
+    let allCommentsFromDb = [];
     let reviewsData = [];
     let appointmentsData = [];
     let consultationsData = [];
     let currentModule = 'dashboard';
     
-<<<<<<< HEAD
-=======
     // Données de démo pour les consultations
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     function initDemoConsultations() {
         if(consultationsData.length === 0) {
             consultationsData = [
@@ -1036,59 +1248,6 @@ $usersApiBase = gh_users_api_base();
         }
     }
     
-<<<<<<< HEAD
-    async function loadPublicationsData() {
-        try {
-            const response = await fetch(window.location.pathname + '?action=get-publications');
-            const result = await response.json();
-            if(result.success && result.data) {
-                forumPosts = result.data.map(pub => ({
-                    id: pub.id_publication,
-                    doctor_id: pub.id_medecin,
-                    doctor_name: 'Médecin #' + pub.id_medecin,
-                    content: pub.contenu,
-                    image: pub.url_image || null,
-                    video: pub.url_video || null,
-                    date: pub.date_publication ? pub.date_publication.substring(0, 10) : new Date().toISOString().substring(0, 10),
-                    status: pub.statut || 'approved',
-                    comments: []
-                }));
-            } else {
-                forumPosts = [];
-            }
-        } catch(err) {
-            console.error('Error loading publications:', err);
-            forumPosts = [];
-        }
-    }
-    
-    async function loadAllData() {
-        const storedUsers = localStorage.getItem('globalhealthBack_users');
-        if(storedUsers) usersData = JSON.parse(storedUsers);
-        else usersData = [];
-        
-        await loadPublicationsData();
-        try {
-            const response = await fetch(window.location.pathname + '?action=get-publications');
-            const result = await response.json();
-            if(result.success && result.data) {
-                forumPosts = result.data.map(pub => ({
-                    id: pub.id_publication,
-                    doctor_name: 'Médecin ' + pub.id_medecin,
-                    content: pub.contenu,
-                    date: pub.date_publication ? pub.date_publication.substring(0, 10) : new Date().toISOString().substring(0, 10),
-                    status: pub.statut || 'approved',
-                    comments: []
-                }));
-            } else {
-                forumPosts = [];
-            }
-        } catch(err) {
-            console.error('Error loading publications from API:', err);
-            forumPosts = [];
-        }
-        
-=======
     const USERS_API_BASE = <?php echo json_encode($usersApiBase, JSON_THROW_ON_ERROR); ?>;
 
     async function apiRequest(endpoint, method = 'GET', payload = null) {
@@ -1111,8 +1270,97 @@ $usersApiBase = gh_users_api_base();
         return result.data;
     }
 
+    const BACKOFFICE_URL = '/globalhealth-connect1/views/backoffice/layout/backoffice.php';
+
     async function loadUsersFromApi() {
         usersData = await apiRequest('list', 'GET');
+    }
+
+    async function loadPublicationsFromDb() {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=get-all-publications`);
+            const data = await res.json();
+            if (data.success) {
+                forumPosts = data.data.map(p => ({
+                    id: p.id_publication,
+                    doctor_name: p.doctor_name || `Médecin #${p.id_publication}`,
+                    content: p.contenu || '',
+                    date: p.date_publication || '',
+                    status: p.statut || 'approved',
+                    moderation_status: p.moderation_status || 'safe',
+                    toxicity_score: Number(p.toxicity_score || 0),
+                    sensitive_score: Number(p.sensitive_score || 0),
+                    medical_risk_score: Number(p.medical_risk_score || 0),
+                    moderation_reason: p.moderation_reason || '',
+                    moderation_source: p.moderation_source || 'fallback',
+                    flagged_at: p.flagged_at || '',
+                    reviewed_at: p.reviewed_at || '',
+                    url_image: p.url_image,
+                    url_video: p.url_video,
+                    comments: []
+                }));
+            }
+        } catch (e) {
+            forumPosts = [];
+        }
+    }
+
+    async function loadModerationPublicationsFromDb() {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=get-moderation-publications`);
+            const data = await res.json();
+            if (data.success) {
+                moderationPosts = data.data.map(p => ({
+                    id: p.id_publication,
+                    doctor_name: p.doctor_name || `Médecin #${p.id_publication}`,
+                    content: p.contenu || '',
+                    date: p.date_publication || '',
+                    status: p.statut || 'blocked',
+                    moderation_status: p.moderation_status || 'review',
+                    toxicity_score: Number(p.toxicity_score || 0),
+                    sensitive_score: Number(p.sensitive_score || 0),
+                    medical_risk_score: Number(p.medical_risk_score || 0),
+                    moderation_reason: p.moderation_reason || '',
+                    moderation_source: p.moderation_source || 'fallback',
+                    flagged_at: p.flagged_at || '',
+                    reviewed_at: p.reviewed_at || ''
+                }));
+            }
+        } catch (e) {
+            moderationPosts = [];
+        }
+    }
+
+    async function loadAllCommentsFromDb() {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=get-all-comments`);
+            const data = await res.json();
+            if (data.success) allCommentsFromDb = data.data;
+        } catch (e) {
+            allCommentsFromDb = [];
+        }
+    }
+
+    async function loadReviewsFromDb() {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=get-all-reviews`);
+            const data = await res.json();
+            if (data.success) {
+                reviewsData = data.data.map(r => ({
+                    id: Number(r.id_avis),
+                    patient_name: r.patient_name || '',
+                    doctor_id: Number(r.id_medecin || 0),
+                    doctor_name: (r.doctor_name || '').trim() || `Medecin #${r.id_medecin}`,
+                    doctor_email: r.doctor_email || '',
+                    rating: Number(r.rating || 0),
+                    comment: r.commentaire || '',
+                    date: r.created_at || '',
+                    status: r.statut || 'pending'
+                }));
+            }
+        } catch (e) {
+            reviewsData = [];
+        }
     }
 
     async function loadAllData() {
@@ -1122,15 +1370,24 @@ $usersApiBase = gh_users_api_base();
             usersData = [];
             showNotification(`Erreur chargement utilisateurs: ${error.message}`, true);
         }
-        
+
+        try {
+            await loadPublicationsFromDb();
+            await loadModerationPublicationsFromDb();
+            await loadAllCommentsFromDb();
+            await loadReviewsFromDb();
+        } catch (error) {
+            forumPosts = [];
+            moderationPosts = [];
+            allCommentsFromDb = [];
+            reviewsData = [];
+        }
+
         const storedPosts = localStorage.getItem('globalhealthBack_posts');
-        if(storedPosts) forumPosts = JSON.parse(storedPosts);
-        else forumPosts = [];
+        if(false) forumPosts = JSON.parse(storedPosts || '[]'); // disabled: using DB now
         
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         const storedReviews = localStorage.getItem('globalhealthBack_reviews');
-        if(storedReviews) reviewsData = JSON.parse(storedReviews);
-        else reviewsData = [];
+        if(false) reviewsData = JSON.parse(storedReviews || '[]'); // disabled: using DB now
         
         const storedAppointments = localStorage.getItem('globalhealthBack_appointments');
         if(storedAppointments) appointmentsData = JSON.parse(storedAppointments);
@@ -1140,61 +1397,15 @@ $usersApiBase = gh_users_api_base();
         if(storedConsultations) consultationsData = JSON.parse(storedConsultations);
         else consultationsData = [];
         
-<<<<<<< HEAD
-        await loadCommentsData();
-        initDemoConsultations();
-    }
-
-    async function loadCommentsData() {
-        try {
-            const response = await fetch(window.location.pathname + '?action=get-all-comments');
-            const result = await response.json();
-            if(result.success && result.data) {
-                commentsData = result.data.map(c => ({
-                    id: c.id_commentaire,
-                    text: c.contenu,
-                    status: c.statut,
-                    date: c.date_publication ? c.date_publication.substring(0, 10) : '',
-                    post_id: c.id_publication,
-                    post_content: c.post_content || '',
-                    user_name: c.user_name || 'Utilisateur',
-                    doctor_name: c.doctor_name || 'Médecin'
-                }));
-            } else {
-                commentsData = [];
-            }
-        } catch(err) {
-            console.error('Erreur chargement commentaires:', err);
-            commentsData = [];
-        }
-    }
-
-    function saveUsers() { localStorage.setItem('globalhealthBack_users', JSON.stringify(usersData)); }
-=======
         initDemoConsultations();
     }
     
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     function savePosts() { localStorage.setItem('globalhealthBack_posts', JSON.stringify(forumPosts)); }
     function saveReviews() { localStorage.setItem('globalhealthBack_reviews', JSON.stringify(reviewsData)); }
     function saveAppointments() { localStorage.setItem('globalhealthBack_appointments', JSON.stringify(appointmentsData)); }
     function saveConsultations() { localStorage.setItem('globalhealthBack_consultations', JSON.stringify(consultationsData)); }
     
     function syncWithFrontoffice() {
-<<<<<<< HEAD
-        const doctors = usersData.filter(u => u.role === 'doctor').map(d => ({
-            id: d.id,
-            name: d.name,
-            specialty: d.specialty || 'Médecin généraliste',
-            email: d.email,
-            phone: d.phone
-        }));
-        localStorage.setItem('globalhealth_doctors', JSON.stringify(doctors));
-        localStorage.setItem('globalhealth_forumPosts', JSON.stringify(forumPosts.filter(p => p.status === 'approved')));
-        localStorage.setItem('globalhealth_reviews', JSON.stringify(reviewsData));
-    }
-    
-=======
         const doctors = usersData.filter(u => u.role === 'medecin').map(d => ({
             id: d.id || d.id_user,
             name: d.name || `${d.nom || ''} ${d.prenom || ''}`.trim(),
@@ -1210,7 +1421,6 @@ $usersApiBase = gh_users_api_base();
     // ============================================
     // NAVIGATION
     // ============================================
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     function switchModule(module) {
         currentModule = module;
         document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
@@ -1220,6 +1430,7 @@ $usersApiBase = gh_users_api_base();
         const titles = {
             dashboard: 'Dashboard - Vue d\'ensemble',
             users: 'Gestion des Utilisateurs',
+            moderation: 'Modération IA - Forum',
             forum: 'Forum - Publications des Médecins',
             comments: 'Gestion des Commentaires',
             reviews: 'Avis Patients - Modération',
@@ -1235,17 +1446,29 @@ $usersApiBase = gh_users_api_base();
         if(module === 'dashboard') body.innerHTML = renderDashboard();
         else if(module === 'users') body.innerHTML = renderUsers();
         else if(module === 'forum') body.innerHTML = renderForum();
+        else if(module === 'moderation') {
+            body.innerHTML = renderModeration();
+            loadModerationPublicationsFromDb().then(() => {
+                if (currentModule === 'moderation') body.innerHTML = renderModeration();
+            });
+        }
         else if(module === 'comments') body.innerHTML = renderComments();
         else if(module === 'reviews') body.innerHTML = renderReviews();
         else if(module === 'appointments') body.innerHTML = renderAppointments();
         else if(module === 'consultations') body.innerHTML = renderConsultations();
     }
     
-<<<<<<< HEAD
-    async function refreshModule() { await loadAllData(); loadModuleContent(currentModule); showNotification('Module actualisé'); }
-=======
-    function refreshModule() { loadModuleContent(currentModule); showNotification('Module actualisé'); }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
+    async function refreshModule() {
+        if (currentModule === 'forum' || currentModule === 'comments' || currentModule === 'dashboard') {
+            await loadPublicationsFromDb();
+            await loadAllCommentsFromDb();
+        }
+        if (currentModule === 'moderation') {
+            await loadModerationPublicationsFromDb();
+        }
+        loadModuleContent(currentModule);
+        showNotification('Module actualisé');
+    }
     
     function showNotification(msg, isError=false) {
         const t = document.getElementById('notificationToast');
@@ -1261,10 +1484,6 @@ $usersApiBase = gh_users_api_base();
         if(!str) return '';
         return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
     }
-<<<<<<< HEAD
-    
-    function showStats(moduleName) { showNotification(`📊 Statistiques - ${moduleName} (Fonctionnalité à venir)`); }
-=======
 
     function userId(u) {
         return u.id ?? u.id_user ?? 0;
@@ -1293,22 +1512,12 @@ $usersApiBase = gh_users_api_base();
     function showStats(moduleName) {
         showNotification(`📊 Statistiques - ${moduleName} (Fonctionnalité à venir)`);
     }
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     
     function exportToPDF(elementId, filename) {
         const element = document.getElementById(elementId);
         if(element && typeof html2pdf !== 'undefined') {
             html2pdf().from(element).set({ filename: filename }).save();
             showNotification('Export PDF en cours...');
-<<<<<<< HEAD
-        } else { showNotification('Export PDF'); }
-    }
-    
-    // ==================== RENDER DASHBOARD ====================
-    function renderDashboard() {
-        const totalUsers = usersData.length;
-        const totalDoctors = usersData.filter(u => u.role === 'doctor').length;
-=======
         } else {
             showNotification('Export PDF');
         }
@@ -1318,12 +1527,10 @@ $usersApiBase = gh_users_api_base();
     function renderDashboard() {
         const totalUsers = usersData.length;
         const totalDoctors = usersData.filter(u => u.role === 'medecin').length;
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         const totalPatients = usersData.filter(u => u.role === 'patient').length;
         const totalPosts = forumPosts.length;
-        const allComments = forumPosts.flatMap(p => p.comments || []);
-        const totalComments = allComments.length;
-        const pendingComments = allComments.filter(c => c.status === 'pending').length;
+        const totalComments = allCommentsFromDb.length;
+        const pendingComments = allCommentsFromDb.filter(c => c.statut === 'en_attente').length;
         const totalReviews = reviewsData.length;
         const pendingReviews = reviewsData.filter(r => r.status === 'pending').length;
         const approvedReviews = reviewsData.filter(r => r.status === 'approved');
@@ -1343,17 +1550,6 @@ $usersApiBase = gh_users_api_base();
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribution des notes des médecins</h5>
-<<<<<<< HEAD
-                    <div class="btn-group-actions"><button class="btn-outline-medical btn-sm" onclick="showStats('Dashboard')"><i class="fas fa-chart-line me-1"></i> Statistiques</button><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('dashboardStats', 'dashboard-stats.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div>
-                </div>
-                <div id="dashboardStats">
-                ${usersData.filter(u => u.role === 'doctor').map(doctor => {
-                    const doctorReviews = reviewsData.filter(r => r.doctor_id === doctor.id && r.status === 'approved');
-                    const avg = doctorReviews.length ? (doctorReviews.reduce((s,r)=>s+r.rating,0)/doctorReviews.length).toFixed(1) : 0;
-                    return `<div class="chart-bar"><div class="chart-bar-fill" style="width:${(avg/5)*100}%">${doctor.name}: ${avg}/5 ★</div></div>`;
-                }).join('')}
-                ${usersData.filter(u => u.role === 'doctor').length === 0 ? '<div class="empty-state"><i class="fas fa-chart-line"></i><p>Aucun médecin pour afficher les statistiques</p></div>' : ''}
-=======
                     <div class="btn-group-actions">
                         <button class="btn-outline-medical btn-sm" onclick="showStats('Dashboard')"><i class="fas fa-chart-line me-1"></i> Statistiques</button>
                         <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('dashboardStats', 'dashboard-stats.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
@@ -1366,25 +1562,17 @@ $usersApiBase = gh_users_api_base();
                     return `<div class="chart-bar"><div class="chart-bar-fill" style="width:${(avg/5)*100}%">${doctor.name || `${doctor.nom || ''} ${doctor.prenom || ''}`.trim()}: ${avg}/5 ★</div></div>`;
                 }).join('')}
                 ${usersData.filter(u => u.role === 'medecin').length === 0 ? '<div class="empty-state"><i class="fas fa-chart-line"></i><p>Aucun médecin pour afficher les statistiques</p></div>' : ''}
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
                 </div>
             </div>
         `;
     }
     
-<<<<<<< HEAD
-    // ==================== RENDER CONSULTATIONS ====================
-=======
     // ==================== CONSULTATION & SUIVI ====================
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     function renderConsultations() {
         if(consultationsData.length === 0) {
             return `<div class="data-card"><div class="empty-state"><i class="fas fa-stethoscope"></i><p>Aucune consultation</p><button class="btn btn-medical" onclick="showAddConsultationModal()"><i class="fas fa-plus"></i> Ajouter une consultation</button></div></div>`;
         }
-<<<<<<< HEAD
-=======
         
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
         return `
             <div class="stats-grid">
                 <div class="stat-card"><div class="stat-number">${consultationsData.length}</div><div class="stat-label">Total consultations</div></div>
@@ -1394,719 +1582,6 @@ $usersApiBase = gh_users_api_base();
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-stethoscope me-2"></i>Liste des consultations et suivis</h5>
-<<<<<<< HEAD
-                    <div class="btn-group-actions"><button class="btn-medical btn-sm" onclick="showAddConsultationModal()"><i class="fas fa-plus"></i> Nouvelle consultation</button><button class="btn-outline-medical btn-sm" onclick="showStats('Consultations')"><i class="fas fa-chart-line"></i> Statistiques</button><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('consultationsTable', 'consultations-suivi.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div>
-                </div>
-                <div id="consultationsTable">
-                <table class="data-table"><thead><tr><th>ID</th><th>Patient</th><th>Médecin</th><th>Date</th><th>Diagnostic</th><th>Traitement</th><th>Suivi</th><th>Actions</th></tr></thead>
-                <tbody>${consultationsData.map(c => `<tr><td>${c.id}</td><td>${escapeHtml(c.id_patient)}</td><td>${escapeHtml(c.id_medecin)}</td><td>${c.date}</td><td>${escapeHtml(c.diagnostic.substring(0,30))}${c.diagnostic.length > 30 ? '...' : ''}</td><td>${escapeHtml(c.traitement ? c.traitement.substring(0,30) : '-')}${c.traitement && c.traitement.length > 30 ? '...' : ''}</td><td>${escapeHtml(c.suivi ? (c.suivi.substring(0,30) + (c.suivi.length > 30 ? '...' : '')) : '-')}</td><td><button class="icon-btn edit" onclick="editConsultation(${c.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteConsultation(${c.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table>
-                </div>
-            </div>
-            <div class="data-card"><h5><i class="fas fa-chart-line me-2"></i>Derniers suivis ajoutés</h5>${consultationsData.slice(-3).reverse().map(c => `<div class="followup-card"><h6><i class="fas fa-calendar-alt me-2"></i> ${c.date} - Patient: ${escapeHtml(c.id_patient)}</h6><p><strong>Diagnostic:</strong> ${escapeHtml(c.diagnostic)}</p><p><strong>Suivi:</strong> ${escapeHtml(c.suivi || 'Aucun suivi pour le moment')}</p><small class="text-muted">Médecin: ${escapeHtml(c.id_medecin)}</small></div>`).join('')}</div>
-        `;
-    }
-    
-    // ==================== RENDER USERS ====================
-    function renderUsers() {
-        const doctors = usersData.filter(u => u.role === 'doctor');
-        const patients = usersData.filter(u => u.role === 'patient');
-        if(usersData.length === 0) return `<div class="data-card"><div class="empty-state"><i class="fas fa-users"></i><p>Aucun utilisateur</p><button class="btn btn-medical" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter un utilisateur</button></div></div>`;
-        return `
-            <div class="stats-grid"><div class="stat-card"><div class="stat-number">${usersData.length}</div><div class="stat-label">Total utilisateurs</div></div><div class="stat-card"><div class="stat-number">${doctors.length}</div><div class="stat-label">Médecins</div></div><div class="stat-card"><div class="stat-number">${patients.length}</div><div class="stat-label">Patients</div></div></div>
-            <div class="data-card"><div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Médecins (${doctors.length})</h5><div class="btn-group-actions"><button class="btn-medical btn-sm" onclick="showAddUserModal()"><i class="fas fa-plus"></i> Ajouter</button><button class="btn-outline-medical btn-sm" onclick="showStats('Utilisateurs')"><i class="fas fa-chart-line"></i> Statistiques</button><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('usersTable', 'medecins-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div></div><div id="usersTable"><table class="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Spécialité</th><th>Actions</th></tr></thead><tbody>${doctors.map(d => `<tr><td><strong>${escapeHtml(d.name)}</strong><br><small class="text-muted">${escapeHtml(d.specialty || 'Généraliste')}</small></td><td>${escapeHtml(d.email)}</td><td>${escapeHtml(d.specialty || '-')}</td><td><button class="icon-btn edit" onclick="editUser(${d.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${d.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div></div>
-            <div class="data-card"><div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><i class="fas fa-users me-2"></i>Patients (${patients.length})</h5><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('patientsTable', 'patients-list.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div><div id="patientsTable"><table class="data-table"><thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Actions</th></tr></thead><tbody>${patients.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.email)}</td><td>${escapeHtml(p.phone || '-')}</td><td><button class="icon-btn edit" onclick="editUser(${p.id})"><i class="fas fa-edit"></i></button><button class="icon-btn delete" onclick="deleteUser(${p.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div></div>
-        `;
-    }
-    
-    function toggleSpecialtyField() { document.getElementById('specialtyField').style.display = document.getElementById('newUserRole').value === 'doctor' ? 'block' : 'none'; }
-    function showAddUserModal() { new bootstrap.Modal(document.getElementById('addUserModal')).show(); }
-    function showAddPostModal() {
-        const select = document.getElementById('postDoctorId');
-        
-        // Fetch doctors from database
-        fetch(window.location.pathname + '?action=get-doctors', { method: 'POST' })
-            .then(r => r.json())
-            .then(result => {
-                if(result.success && result.data.length > 0) {
-                    select.innerHTML = '<option value="">Sélectionner un médecin</option>' + 
-                        result.data.map(d => `<option value="${d.id}">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</option>`).join('');
-                    new bootstrap.Modal(document.getElementById('addPostModal')).show();
-                } else {
-                    showNotification('Veuillez d\'abord ajouter des médecins', true);
-                }
-            })
-            .catch(err => {
-                console.error('Erreur:', err);
-                showNotification('Erreur lors du chargement des médecins', true);
-            });
-    }
-    function showAddConsultationModal() { new bootstrap.Modal(document.getElementById('addConsultationModal')).show(); }
-    function showNotifyReviewModal() {
-        const select = document.getElementById('notifyPatientId');
-        const patients = usersData.filter(u => u.role === 'patient');
-        if(select) select.innerHTML = '<option value="">Sélectionner</option>' + patients.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-        if(patients.length === 0) { showNotification('Aucun patient disponible', true); return; }
-        new bootstrap.Modal(document.getElementById('notifyReviewModal')).show();
-    }
-    
-    // ==================== CRUD AVEC VALIDATION ====================
-    
-    // Fonctions de validation (affichage des erreurs)
-    function showError(input, message) {
-        if(!input) return;
-        input.classList.add('is-invalid');
-        let errorDiv = input.parentNode.querySelector('.invalid-feedback');
-        if(!errorDiv) { errorDiv = document.createElement('div'); errorDiv.className = 'invalid-feedback'; input.parentNode.appendChild(errorDiv); }
-        errorDiv.textContent = message;
-    }
-    function removeError(input) {
-        if(!input) return;
-        input.classList.remove('is-invalid');
-        let errorDiv = input.parentNode?.querySelector('.invalid-feedback');
-        if(errorDiv) errorDiv.remove();
-    }
-    
-    // Validation Ajout Utilisateur
-    function validateAddUser() {
-        let valid = true;
-        const name = document.getElementById('newUserName');
-        const email = document.getElementById('newUserEmail');
-        const phone = document.getElementById('newUserPhone');
-        const role = document.getElementById('newUserRole');
-        const specialty = document.getElementById('newUserSpecialty');
-        if(!name.value.trim()) { showError(name, "Nom obligatoire"); valid=false; }
-        else if(name.value.trim().length<2) { showError(name, "Min 2 caractères"); valid=false; }
-        else if(name.value.trim().length>100) { showError(name, "Max 100 caractères"); valid=false; }
-        else if(!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(name.value.trim())) { showError(name, "Lettres uniquement"); valid=false; }
-        else removeError(name);
-        
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if(!email.value.trim()) { showError(email, "Email obligatoire"); valid=false; }
-        else if(!emailRegex.test(email.value.trim())) { showError(email, "Email invalide"); valid=false; }
-        else removeError(email);
-        
-        const phoneRegex = /^(?:(?:\+|00)33|0)[1-9]\d{8}$/;
-        if(phone.value.trim() && !phoneRegex.test(phone.value.trim())) { showError(phone, "Téléphone invalide"); valid=false; }
-        else removeError(phone);
-        
-        if(role.value === 'doctor' && specialty) {
-            if(!specialty.value.trim()) { showError(specialty, "Spécialité obligatoire"); valid=false; }
-            else if(specialty.value.trim().length<2) { showError(specialty, "Min 2 caractères"); valid=false; }
-            else if(specialty.value.trim().length>50) { showError(specialty, "Max 50 caractères"); valid=false; }
-            else removeError(specialty);
-        }
-        return valid;
-    }
-    
-    // Validation Modif Utilisateur
-    function validateEditUser() {
-        let valid = true;
-        const name = document.getElementById('editUserName');
-        const email = document.getElementById('editUserEmail');
-        const phone = document.getElementById('editUserPhone');
-        const specialty = document.getElementById('editUserSpecialty');
-        if(!name.value.trim()) { showError(name, "Nom obligatoire"); valid=false; }
-        else if(name.value.trim().length<2) { showError(name, "Min 2 caractères"); valid=false; }
-        else if(name.value.trim().length>100) { showError(name, "Max 100 caractères"); valid=false; }
-        else if(!/^[a-zA-ZÀ-ÿ\s\-']+$/.test(name.value.trim())) { showError(name, "Lettres uniquement"); valid=false; }
-        else removeError(name);
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if(!email.value.trim()) { showError(email, "Email obligatoire"); valid=false; }
-        else if(!emailRegex.test(email.value.trim())) { showError(email, "Email invalide"); valid=false; }
-        else removeError(email);
-        const phoneRegex = /^(?:(?:\+|00)33|0)[1-9]\d{8}$/;
-        if(phone.value.trim() && !phoneRegex.test(phone.value.trim())) { showError(phone, "Téléphone invalide"); valid=false; }
-        else removeError(phone);
-        if(specialty && specialty.value.trim()) {
-            if(specialty.value.trim().length<2) { showError(specialty, "Min 2 caractères"); valid=false; }
-            else if(specialty.value.trim().length>50) { showError(specialty, "Max 50 caractères"); valid=false; }
-            else removeError(specialty);
-        }
-        return valid;
-    }
-    
-    // Validation Ajout Publication
-    function validateAddPost() {
-        let valid = true;
-        const doctor = document.getElementById('postDoctorId');
-        const content = document.getElementById('postContent');
-        const image = document.getElementById('postImage');
-        const video = document.getElementById('postVideo');
-        if(!doctor.value) { showError(doctor, "Sélectionnez un médecin"); valid=false; } else removeError(doctor);
-        if(!content.value.trim()) { showError(content, "Contenu obligatoire"); valid=false; }
-        else if(content.value.trim().length<10) { showError(content, "Min 10 caractères"); valid=false; }
-        else if(content.value.trim().length>2000) { showError(content, "Max 2000 caractères"); valid=false; }
-        else removeError(content);
-        // More permissive URL validation that allows query strings
-        const urlRegex = /^https?:\/\/[^\s]+$/i;
-        if(image.value.trim() && !urlRegex.test(image.value.trim())) { showError(image, "URL invalide (doit commencer par http:// ou https://)"); valid=false; } else removeError(image);
-        if(video.value.trim() && !urlRegex.test(video.value.trim())) { showError(video, "URL invalide (doit commencer par http:// ou https://)"); valid=false; } else removeError(video);
-        return valid;
-    }
-    
-    // Validation Notification
-    function validateNotify() {
-        let valid = true;
-        const patient = document.getElementById('notifyPatientId');
-        const message = document.getElementById('notifyMessage');
-        if(!patient.value) { showError(patient, "Sélectionnez un patient"); valid=false; } else removeError(patient);
-        if(!message.value.trim()) { showError(message, "Message obligatoire"); valid=false; }
-        else if(message.value.trim().length<10) { showError(message, "Min 10 caractères"); valid=false; }
-        else if(message.value.trim().length>500) { showError(message, "Max 500 caractères"); valid=false; }
-        else removeError(message);
-        return valid;
-    }
-    
-    // Validation Ajout Consultation
-    function validateAddConsultation() {
-        let valid = true;
-        const patientId = document.getElementById('consultation_id_patient');
-        const medecinId = document.getElementById('consultation_id_medecin');
-        const date = document.getElementById('consultation_date');
-        const symptomes = document.getElementById('consultation_symptomes');
-        const diagnostic = document.getElementById('consultation_diagnostic');
-        if(!patientId.value.trim()) { showError(patientId, "ID Patient obligatoire"); valid=false; } else removeError(patientId);
-        if(!medecinId.value.trim()) { showError(medecinId, "ID Médecin obligatoire"); valid=false; } else removeError(medecinId);
-        if(!date.value) { showError(date, "Date obligatoire"); valid=false; } else removeError(date);
-        if(!symptomes.value.trim()) { showError(symptomes, "Symptômes obligatoires"); valid=false; }
-        else if(symptomes.value.trim().length<5) { showError(symptomes, "Min 5 caractères"); valid=false; }
-        else removeError(symptomes);
-        if(!diagnostic.value.trim()) { showError(diagnostic, "Diagnostic obligatoire"); valid=false; }
-        else if(diagnostic.value.trim().length<3) { showError(diagnostic, "Min 3 caractères"); valid=false; }
-        else removeError(diagnostic);
-        return valid;
-    }
-    
-    // Validation Modif Consultation
-    function validateEditConsultation() {
-        let valid = true;
-        const patientId = document.getElementById('edit_consultation_id_patient');
-        const medecinId = document.getElementById('edit_consultation_id_medecin');
-        const date = document.getElementById('edit_consultation_date');
-        const symptomes = document.getElementById('edit_consultation_symptomes');
-        const diagnostic = document.getElementById('edit_consultation_diagnostic');
-        if(!patientId.value.trim()) { showError(patientId, "ID Patient obligatoire"); valid=false; } else removeError(patientId);
-        if(!medecinId.value.trim()) { showError(medecinId, "ID Médecin obligatoire"); valid=false; } else removeError(medecinId);
-        if(!date.value) { showError(date, "Date obligatoire"); valid=false; } else removeError(date);
-        if(!symptomes.value.trim()) { showError(symptomes, "Symptômes obligatoires"); valid=false; }
-        else if(symptomes.value.trim().length<5) { showError(symptomes, "Min 5 caractères"); valid=false; }
-        else removeError(symptomes);
-        if(!diagnostic.value.trim()) { showError(diagnostic, "Diagnostic obligatoire"); valid=false; }
-        else if(diagnostic.value.trim().length<3) { showError(diagnostic, "Min 3 caractères"); valid=false; }
-        else removeError(diagnostic);
-        return valid;
-    }
-    
-    // ========== ATTACHEMENT DES ÉVÉNEMENTS AVEC VALIDATION ==========
-    function attachValidatedEvents() {
-        // Ajout utilisateur
-        const addUserForm = document.getElementById('addUserForm');
-        if(addUserForm) {
-            const originalSubmit = addUserForm.onsubmit;
-            addUserForm.addEventListener('submit', function(e) {
-                if(!validateAddUser()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showNotification("Veuillez corriger les erreurs", true);
-                }
-            });
-        }
-        // Modif utilisateur
-        const editUserForm = document.getElementById('editUserForm');
-        if(editUserForm) {
-            editUserForm.addEventListener('submit', function(e) {
-                if(!validateEditUser()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showNotification("Veuillez corriger les erreurs", true);
-                }
-            });
-        }
-        // Ajout publication
-        const addPostForm = document.getElementById('addPostForm');
-        if(false && addPostForm) {
-            addPostForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                if(!validateAddPost()) {
-                    showNotification("Veuillez corriger les erreurs", true);
-                    return;
-                }
-
-                try {
-                    const formData = {
-                        id_medecin: parseInt(document.getElementById('postDoctorId').value),
-                        contenu: document.getElementById('postContent').value.trim(),
-                        url_image: document.getElementById('postImage').value.trim() || null,
-                        url_video: document.getElementById('postVideo').value.trim() || null
-                    };
-
-                    const response = await fetch(window.location.pathname + '?action=add-publication', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(formData)
-                    });
-
-                    const result = await response.json();
-                    
-                    if(result.success) {
-                        showNotification('Publication ajoutée avec succès!', false);
-                        addPostForm.reset();
-                        bootstrap.Modal.getInstance(document.getElementById('addPostModal')).hide();
-                        // Refresh the page to show new publication
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        showNotification(result.error || 'Erreur lors de l\'ajout', true);
-                    }
-                } catch(error) {
-                    console.error('Erreur:', error);
-                    showNotification('Erreur: ' + error.message, true);
-                }
-            });
-        }
-        // Notification
-        const notifyForm = document.getElementById('notifyReviewForm');
-        if(notifyForm) {
-            notifyForm.addEventListener('submit', function(e) {
-                if(!validateNotify()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showNotification("Veuillez corriger les erreurs", true);
-                }
-            });
-        }
-        // Ajout consultation
-        const addConsultForm = document.getElementById('addConsultationForm');
-        if(addConsultForm) {
-            addConsultForm.addEventListener('submit', function(e) {
-                if(!validateAddConsultation()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showNotification("Veuillez corriger les erreurs", true);
-                }
-            });
-        }
-        // Modif consultation
-        const editConsultForm = document.getElementById('editConsultationForm');
-        if(editConsultForm) {
-            editConsultForm.addEventListener('submit', function(e) {
-                if(!validateEditConsultation()) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showNotification("Veuillez corriger les erreurs", true);
-                }
-            });
-        }
-        
-        // Nettoyage des erreurs en temps réel
-        document.querySelectorAll('#addUserForm input, #addUserForm select, #addUserForm textarea, #editUserForm input, #editUserForm select, #editUserForm textarea, #addPostForm input, #addPostForm select, #addPostForm textarea, #notifyReviewForm input, #notifyReviewForm select, #notifyReviewForm textarea, #addConsultationForm input, #addConsultationForm select, #addConsultationForm textarea, #editConsultationForm input, #editConsultationForm select, #editConsultationForm textarea').forEach(el => {
-            el.addEventListener('input', () => removeError(el));
-            el.addEventListener('change', () => removeError(el));
-        });
-    }
-    
-    // ==================== AUTRES CRUD ====================
-    document.getElementById('addUserForm')?.addEventListener('submit', async (e) => { 
-        e.preventDefault();
-        if(validateAddUser()) { 
-            const newUser = { 
-                name: document.getElementById('newUserName').value, 
-                email: document.getElementById('newUserEmail').value, 
-                phone: document.getElementById('newUserPhone').value, 
-                role: document.getElementById('newUserRole').value, 
-                password: 'password123'
-            };
-            
-            try {
-                const response = await fetch(window.location.pathname + '?action=add-user-db', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newUser)
-                });
-                
-                const result = await response.json();
-                
-                if(result.success) {
-                    // Add to local array
-                    const userWithId = { 
-                        id: result.data.id, 
-                        name: newUser.name, 
-                        email: newUser.email, 
-                        phone: newUser.phone, 
-                        role: newUser.role, 
-                        specialty: document.getElementById('newUserSpecialty')?.value || null, 
-                        status: 'active' 
-                    };
-                    usersData.push(userWithId);
-                    saveUsers();
-                    syncWithFrontoffice();
-                    bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
-                    document.getElementById('addUserForm').reset();
-                    showNotification(`✓ Utilisateur ${newUser.name} ajouté en base de données`);
-                    refreshModule();
-                } else {
-                    showNotification(result.error || 'Erreur lors de l\'ajout', true);
-                }
-            } catch(error) {
-                console.error('Erreur:', error);
-                showNotification('Erreur: ' + error.message, true);
-            }
-        } 
-    });
-    document.getElementById('editUserForm')?.addEventListener('submit', (e) => { if(validateEditUser()) { const id = parseInt(document.getElementById('editUserId').value); const user = usersData.find(u => u.id === id); if(user) { user.name = document.getElementById('editUserName').value; user.email = document.getElementById('editUserEmail').value; user.phone = document.getElementById('editUserPhone').value; if(user.role === 'doctor') user.specialty = document.getElementById('editUserSpecialty').value; saveUsers(); syncWithFrontoffice(); showNotification(`Utilisateur ${user.name} modifié`); bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide(); refreshModule(); } } });
-    let isSubmittingPost = false;
-    document.getElementById('addPostForm')?.addEventListener('submit', async (e) => { 
-        e.preventDefault();
-        if(isSubmittingPost) return;
-        if(!validateAddPost()) return;
-        
-        try {
-            isSubmittingPost = true;
-            const formData = {
-                id_medecin: parseInt(document.getElementById('postDoctorId').value),
-                contenu: document.getElementById('postContent').value,
-                url_image: document.getElementById('postImage').value.trim() || null,
-                url_video: document.getElementById('postVideo').value.trim() || null
-            };
-
-            const response = await fetch(window.location.pathname + '?action=add-publication', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-
-            const result = await response.json();
-            
-            if(result.success) {
-                await loadPublicationsData();
-                savePosts();
-                syncWithFrontoffice();
-                bootstrap.Modal.getInstance(document.getElementById('addPostModal')).hide();
-                document.getElementById('addPostForm').reset();
-                showNotification('Publication ajoutée avec succès en base de données!', false);
-                loadModuleContent(currentModule);
-                return;
-                // Also add to local data for display
-                const doctor = usersData.find(u => u.id === formData.id_medecin);
-                if(doctor) {
-                    const newPost = { 
-                        id: result.id, 
-                        doctor_id: formData.id_medecin, 
-                        doctor_name: doctor.name, 
-                        doctor_avatar: doctor.name.substring(0,2).toUpperCase(), 
-                        content: formData.contenu, 
-                        image: formData.url_image, 
-                        video: formData.url_video, 
-                        date: new Date().toLocaleDateString('fr-FR'), 
-                        status: 'pending', 
-                        comments: [] 
-                    };
-                    forumPosts.push(newPost);
-                    savePosts();
-                    syncWithFrontoffice();
-                    bootstrap.Modal.getInstance(document.getElementById('addPostModal')).hide();
-                    document.getElementById('addPostForm').reset();
-                    showNotification('Publication ajoutée avec succès en base de données!', false);
-                    refreshModule();
-                }
-            } else {
-                showNotification(result.error || 'Erreur lors de l\'ajout', true);
-            }
-        } catch(error) {
-            console.error('Erreur:', error);
-            showNotification('Erreur: ' + error.message, true);
-        } finally {
-            isSubmittingPost = false;
-        }
-    });
-    document.getElementById('notifyReviewForm')?.addEventListener('submit', (e) => { if(validateNotify()) { const patient = usersData.find(u => u.id == document.getElementById('notifyPatientId').value); if(patient) { showNotification(`📧 Notification envoyée à ${patient.name}`); bootstrap.Modal.getInstance(document.getElementById('notifyReviewModal')).hide(); } else showNotification('Veuillez sélectionner un patient', true); } });
-    document.getElementById('addConsultationForm')?.addEventListener('submit', (e) => { if(validateAddConsultation()) { const newConsultation = { id: Date.now(), id_patient: document.getElementById('consultation_id_patient').value, id_medecin: document.getElementById('consultation_id_medecin').value, id_rdv: document.getElementById('consultation_id_rdv').value || null, date: document.getElementById('consultation_date').value, symptomes: document.getElementById('consultation_symptomes').value, diagnostic: document.getElementById('consultation_diagnostic').value, traitement: document.getElementById('consultation_traitement').value, ordonnance: document.getElementById('consultation_ordonnance').value, notes_medecin: document.getElementById('consultation_notes').value, suivi: document.getElementById('consultation_suivi').value }; consultationsData.push(newConsultation); saveConsultations(); bootstrap.Modal.getInstance(document.getElementById('addConsultationModal')).hide(); document.getElementById('addConsultationForm').reset(); showNotification('Consultation ajoutée avec succès'); refreshModule(); } });
-    document.getElementById('editConsultationForm')?.addEventListener('submit', (e) => { if(validateEditConsultation()) { const id = parseInt(document.getElementById('editConsultationId').value); const index = consultationsData.findIndex(c => c.id === id); if(index !== -1) { consultationsData[index] = { ...consultationsData[index], id_patient: document.getElementById('edit_consultation_id_patient').value, id_medecin: document.getElementById('edit_consultation_id_medecin').value, id_rdv: document.getElementById('edit_consultation_id_rdv').value || null, date: document.getElementById('edit_consultation_date').value, symptomes: document.getElementById('edit_consultation_symptomes').value, diagnostic: document.getElementById('edit_consultation_diagnostic').value, traitement: document.getElementById('edit_consultation_traitement').value, ordonnance: document.getElementById('edit_consultation_ordonnance').value, notes_medecin: document.getElementById('edit_consultation_notes').value, suivi: document.getElementById('edit_consultation_suivi').value }; saveConsultations(); bootstrap.Modal.getInstance(document.getElementById('editConsultationModal')).hide(); showNotification('Consultation modifiée avec succès'); refreshModule(); } } });
-    let isEditingPost = false;
-    document.getElementById('editPostForm')?.addEventListener('submit', async (e) => { e.preventDefault(); if(isEditingPost) return; const id = parseInt(document.getElementById('editPostId').value); const content = document.getElementById('editPostContent').value.trim(); if(!content || content.length < 10) { showNotification('Le contenu doit contenir au moins 10 caractères', true); return; } try { isEditingPost = true; const formData = { id, contenu: content, url_image: document.getElementById('editPostImage').value.trim() || null, url_video: document.getElementById('editPostVideo').value.trim() || null }; const response = await fetch(window.location.pathname + '?action=update-publication', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) }); const result = await response.json(); if(result.success) { await loadPublicationsData(); savePosts(); syncWithFrontoffice(); bootstrap.Modal.getInstance(document.getElementById('editPostModal')).hide(); showNotification('Publication modifiée avec succès'); loadModuleContent(currentModule); } else { showNotification(result.error || 'Erreur lors de la modification', true); } } catch(error) { console.error('Erreur:', error); showNotification('Erreur: ' + error.message, true); } finally { isEditingPost = false; } });
-
-    function editUser(id) { const user = usersData.find(u => u.id === id); if(user) { document.getElementById('editUserId').value = user.id; document.getElementById('editUserName').value = user.name; document.getElementById('editUserEmail').value = user.email; document.getElementById('editUserPhone').value = user.phone || ''; document.getElementById('editUserSpecialty').value = user.specialty || ''; new bootstrap.Modal(document.getElementById('editUserModal')).show(); } }
-    function deleteUser(id) { if(confirm('Supprimer cet utilisateur ?')) { usersData = usersData.filter(u => u.id !== id); saveUsers(); syncWithFrontoffice(); showNotification('Utilisateur supprimé'); refreshModule(); } }
-    function editPost(id) { const post = forumPosts.find(p => p.id === id); if(post) { document.getElementById('editPostId').value = post.id; document.getElementById('editPostContent').value = post.content; document.getElementById('editPostImage').value = post.image || ''; document.getElementById('editPostVideo').value = post.video || ''; new bootstrap.Modal(document.getElementById('editPostModal')).show(); } }
-    async function togglePostStatus(id) {
-        try {
-            const r = await fetch(window.location.pathname + '?action=toggle-publication-status', {
-                method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id})
-            });
-            const result = await r.json();
-            if(result.success) {
-                const post = forumPosts.find(p => p.id === id);
-                if(post) post.status = result.statut;
-                savePosts(); syncWithFrontoffice();
-                showNotification(result.statut === 'blocked' ? 'Publication bloquée' : 'Publication débloquée');
-                loadModuleContent(currentModule);
-            } else { showNotification(result.error || 'Erreur', true); }
-        } catch(e) { showNotification('Erreur : ' + e.message, true); }
-    }
-    async function deletePost(id) {
-        if(!confirm('Supprimer cette publication ?')) return;
-        try {
-            const response = await fetch(window.location.pathname + '?action=delete-publication', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            });
-            const result = await response.json();
-            if(result.success) {
-                await loadPublicationsData();
-                savePosts();
-                syncWithFrontoffice();
-                showNotification('Publication supprimée');
-                loadModuleContent(currentModule);
-            } else {
-                showNotification(result.error || 'Erreur lors de la suppression', true);
-            }
-        } catch(error) {
-            console.error('Erreur suppression publication:', error);
-            showNotification('Erreur: ' + error.message, true);
-        }
-    }
-    async function showPostDetail(id) {
-        const post = forumPosts.find(p => p.id === id);
-        if (!post) return;
-
-        const body = document.getElementById('moduleContent');
-        body.innerHTML = `
-            <div style="max-width:860px; margin:0 auto;">
-                <a onclick="loadModuleContent('forum')" style="cursor:pointer;color:var(--medical-blue);display:inline-flex;align-items:center;gap:6px;margin-bottom:20px;font-weight:500;text-decoration:none;font-size:0.95rem;">
-                    <i class="fas fa-arrow-left"></i> Retour à la liste
-                </a>
-
-                <div class="data-card" style="margin-bottom:20px;">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
-                        <div>
-                            <h4 style="font-weight:700;margin:0 0 6px;color:var(--medical-dark);">${escapeHtml(post.content.substring(0,80))}${post.content.length>80?'...':''}</h4>
-                            <p style="margin:0;color:#666;font-size:0.9rem;">
-                                Par <strong style="color:var(--medical-blue);">${escapeHtml(post.doctor_name)}</strong> le ${post.date}
-                            </p>
-                        </div>
-                        <span class="status-badge ${post.status==='approved'?'status-approved':'status-pending'}" style="flex-shrink:0;margin-left:12px;">
-                            ${post.status==='approved'?'Approuvée':'En attente'}
-                        </span>
-                    </div>
-                    <div style="background:#f9f9f9;padding:16px;border-radius:10px;line-height:1.7;color:#333;white-space:pre-wrap;">
-                        ${escapeHtml(post.content)}
-                    </div>
-                </div>
-
-                <div class="data-card" id="detail-replies-${id}" style="margin-bottom:20px;">
-                    <div class="text-center py-3 text-muted">
-                        <i class="fas fa-spinner fa-spin me-2"></i>Chargement des réponses...
-                    </div>
-                </div>
-
-                <div class="data-card">
-                    <h5 style="margin-bottom:16px;font-weight:600;">
-                        <i class="fas fa-reply me-2" style="color:var(--medical-blue);"></i>Répondre
-                    </h5>
-                    <textarea id="admin-reply-${id}" rows="4"
-                        placeholder="Écrivez votre réponse ici..."
-                        style="width:100%;padding:12px 16px;border:1px solid #e0e0e0;border-radius:12px;font-family:inherit;font-size:0.95rem;resize:vertical;margin-bottom:12px;outline:none;transition:border-color 0.2s;"
-                        onfocus="this.style.borderColor='var(--medical-blue)'" onblur="this.style.borderColor='#e0e0e0'"></textarea>
-                    <button onclick="submitAdminReply(${id})" id="reply-btn-${id}"
-                        style="background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));color:white;border:none;padding:10px 24px;border-radius:12px;cursor:pointer;font-weight:600;font-size:0.95rem;display:inline-flex;align-items:center;gap:8px;transition:opacity 0.2s;">
-                        <i class="fas fa-paper-plane"></i> Envoyer la réponse
-                    </button>
-                </div>
-            </div>
-        `;
-        loadDetailReplies(id);
-    }
-
-    async function loadDetailReplies(pubId) {
-        const container = document.getElementById(`detail-replies-${pubId}`);
-        if (!container) return;
-        try {
-            const r = await fetch(window.location.pathname + '?action=get-comments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id_publication: parseInt(pubId) })
-            });
-            const result = await r.json();
-            const comments = (result.success && result.data) ? result.data : [];
-            container.innerHTML = `
-                <h5 style="margin-bottom:16px;font-weight:600;">
-                    <i class="fas fa-comments me-2" style="color:#f39c12;"></i>Réponses (${comments.length})
-                </h5>
-                ${comments.length === 0
-                    ? '<p class="text-muted fst-italic" style="margin:0;">Aucune réponse pour le moment.</p>'
-                    : comments.map(c => `
-                        <div data-reply-id="${c.id_commentaire}" style="background:#f9f9f9;padding:14px;border-radius:10px;margin-bottom:10px;border-left:3px solid var(--medical-blue);">
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                                <strong style="color:var(--medical-blue);">${escapeHtml((c.prenom||'')+' '+(c.nom||''))}</strong>
-                                <div style="display:flex;align-items:center;gap:4px;">
-                                    <small class="text-muted me-2">${(c.date_publication||'').substring(0,16).replace('T',' ')}</small>
-                                    <button onclick="startEditReply(this,'${pubId}')" class="icon-btn edit" title="Modifier" style="width:28px;height:28px;font-size:0.78rem;"><i class="fas fa-edit"></i></button>
-                                    <button onclick="deleteReply(${c.id_commentaire},'${pubId}')" class="icon-btn delete" title="Supprimer" style="width:28px;height:28px;font-size:0.78rem;"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </div>
-                            <div class="reply-text" style="line-height:1.6;color:#333;">${escapeHtml(c.contenu)}</div>
-                        </div>
-                    `).join('')
-                }
-            `;
-        } catch(e) {
-            container.innerHTML = `<p class="text-danger">Erreur : ${e.message}</p>`;
-        }
-    }
-
-    async function submitAdminReply(pubId) {
-        const textarea = document.getElementById(`admin-reply-${pubId}`);
-        const btn = document.getElementById(`reply-btn-${pubId}`);
-        const contenu = textarea ? textarea.value.trim() : '';
-        if (!contenu || contenu.length < 2) { showNotification('Veuillez écrire une réponse', true); return; }
-
-        // Fetch first available user as author
-        let userId = 1;
-        try {
-            const ur = await fetch(window.location.pathname + '?action=get-users');
-            const ud = await ur.json();
-            if (ud.success && ud.data && ud.data.length > 0) userId = ud.data[0].id;
-        } catch(e) {}
-
-        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Envoi...';
-        try {
-            const r = await fetch(window.location.pathname + '?action=add-comment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id_publication: parseInt(pubId), id_user: userId, contenu })
-            });
-            const result = await r.json();
-            if (result.success) {
-                textarea.value = '';
-                showNotification('Réponse envoyée avec succès');
-                loadDetailReplies(pubId);
-            } else {
-                showNotification(result.error || 'Erreur lors de l\'envoi', true);
-            }
-        } catch(e) {
-            showNotification('Erreur : ' + e.message, true);
-        } finally {
-            btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Envoyer la réponse';
-        }
-    }
-
-    function startEditReply(btn, pubId) {
-        const card    = btn.closest('[data-reply-id]');
-        const replyId = card.dataset.replyId;
-        const textDiv = card.querySelector('.reply-text');
-        const original = textDiv.textContent.trim();
-
-        // Masquer les boutons pendant l'édition
-        btn.closest('div[style*="display:flex"]').style.display = 'none';
-
-        textDiv.innerHTML = `
-            <textarea id="edit-reply-${replyId}" rows="3"
-                style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-family:inherit;font-size:0.9rem;resize:vertical;margin-top:4px;"
-                onfocus="this.style.borderColor='var(--medical-blue)'" onblur="this.style.borderColor='#ddd'">${escapeHtml(original)}</textarea>
-            <div style="display:flex;gap:8px;margin-top:8px;">
-                <button onclick="saveEditReply('${replyId}','${pubId}')"
-                    style="background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));color:white;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
-                    <i class="fas fa-save me-1"></i>Enregistrer
-                </button>
-                <button onclick="loadDetailReplies('${pubId}')"
-                    style="background:#f0f0f0;border:none;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;">
-                    Annuler
-                </button>
-            </div>
-        `;
-        document.getElementById(`edit-reply-${replyId}`).focus();
-    }
-
-    async function saveEditReply(replyId, pubId) {
-        const textarea = document.getElementById(`edit-reply-${replyId}`);
-        const contenu  = textarea ? textarea.value.trim() : '';
-        if (!contenu || contenu.length < 2) { showNotification('Le commentaire est trop court', true); return; }
-        try {
-            const r = await fetch(window.location.pathname + '?action=update-comment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(replyId), contenu })
-            });
-            const result = await r.json();
-            if (result.success) { showNotification('Réponse modifiée'); loadDetailReplies(pubId); }
-            else showNotification(result.error || 'Erreur', true);
-        } catch(e) { showNotification('Erreur : ' + e.message, true); }
-    }
-
-    async function deleteReply(replyId, pubId) {
-        if (!confirm('Supprimer cette réponse ?')) return;
-        try {
-            const r = await fetch(window.location.pathname + '?action=delete-comment-db', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: parseInt(replyId) })
-            });
-            const result = await r.json();
-            if (result.success) { showNotification('Réponse supprimée'); loadDetailReplies(pubId); }
-            else showNotification(result.error || 'Erreur', true);
-        } catch(e) { showNotification('Erreur : ' + e.message, true); }
-    }
-
-    function editConsultation(id) { const consultation = consultationsData.find(c => c.id === id); if(consultation) { document.getElementById('editConsultationId').value = consultation.id; document.getElementById('edit_consultation_id_patient').value = consultation.id_patient; document.getElementById('edit_consultation_id_medecin').value = consultation.id_medecin; document.getElementById('edit_consultation_id_rdv').value = consultation.id_rdv || ''; document.getElementById('edit_consultation_date').value = consultation.date; document.getElementById('edit_consultation_symptomes').value = consultation.symptomes; document.getElementById('edit_consultation_diagnostic').value = consultation.diagnostic; document.getElementById('edit_consultation_traitement').value = consultation.traitement || ''; document.getElementById('edit_consultation_ordonnance').value = consultation.ordonnance || ''; document.getElementById('edit_consultation_notes').value = consultation.notes_medecin || ''; document.getElementById('edit_consultation_suivi').value = consultation.suivi || ''; new bootstrap.Modal(document.getElementById('editConsultationModal')).show(); } }
-    function deleteConsultation(id) { if(confirm('Supprimer cette consultation ?')) { consultationsData = consultationsData.filter(c => c.id !== id); saveConsultations(); showNotification('Consultation supprimée'); refreshModule(); } }
-    function approveReview(id) { const r = reviewsData.find(r => r.id === id); if(r){ r.status = 'approved'; saveReviews(); syncWithFrontoffice(); showNotification(`Avis approuvé`); refreshModule(); } }
-    function reportReview(id) { const r = reviewsData.find(r => r.id === id); if(r){ r.status = 'reported'; saveReviews(); syncWithFrontoffice(); showNotification(`Avis signalé`); refreshModule(); } }
-    function deleteReview(id) { if(confirm('Supprimer cet avis ?')){ reviewsData = reviewsData.filter(r => r.id !== id); saveReviews(); syncWithFrontoffice(); showNotification('Avis supprimé'); refreshModule(); } }
-    function confirmPayment(id) { const a = appointmentsData.find(a => a.id === id); if(a){ a.payment_status = 'payé'; saveAppointments(); showNotification('Paiement confirmé'); refreshModule(); } }
-    function deleteAppointment(id) { if(confirm('Annuler ce rendez-vous ?')){ appointmentsData = appointmentsData.filter(a => a.id !== id); saveAppointments(); showNotification('Rendez-vous annulé'); refreshModule(); } }
-    function sendAutoReviewNotification() { showNotification(`🔔 Notification envoyée à ${usersData.filter(u=>u.role==='patient').length} patient(s)`); }
-    function renderForum() {
-        if(forumPosts.length === 0) return `<div class="data-card"><div class="empty-state"><i class="fas fa-newspaper"></i><p>Aucune publication</p><button class="btn btn-medical" onclick="showAddPostModal()"><i class="fas fa-plus"></i> Nouvelle publication</button></div></div>`;
-        const approvedPosts = forumPosts.filter(p => p.status === 'approved').length;
-        const pendingPosts = forumPosts.filter(p => p.status === 'pending').length;
-        return `<div class="stats-grid"><div class="stat-card"><div class="stat-number">${forumPosts.length}</div><div class="stat-label">Total publications</div></div><div class="stat-card"><div class="stat-number">${approvedPosts}</div><div class="stat-label">Approuvées</div></div><div class="stat-card"><div class="stat-number">${pendingPosts}</div><div class="stat-label">En attente</div></div></div><div class="data-card"><div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><i class="fas fa-newspaper me-2"></i>Publications des médecins</h5><div class="btn-group-actions"><button class="btn-medical btn-sm" onclick="showAddPostModal()"><i class="fas fa-plus"></i> Nouvelle</button><button class="btn-outline-medical btn-sm" onclick="showStats('Publications')"><i class="fas fa-chart-line"></i> Statistiques</button><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('forumTable', 'forum-publications.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div></div><div id="forumTable"><table class="data-table"><thead><tr><th>Médecin</th><th>Contenu</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${forumPosts.map(p => `<tr><td>${escapeHtml(p.doctor_name)}</td><td>${escapeHtml(p.content.substring(0,50))}...</td><td>${p.date}</td><td><span class="status-badge ${p.status==='approved'?'status-approved':p.status==='blocked'?'status-blocked':'status-pending'}">${p.status==='approved'?'Approuvée':p.status==='blocked'?'Bloquée':'En attente'}</span></td><td><button class="icon-btn show" onclick="showPostDetail(${p.id})" title="Voir détails"><i class="fas fa-eye"></i></button><button class="icon-btn edit" onclick="editPost(${p.id})" title="Modifier"><i class="fas fa-edit"></i></button><button class="icon-btn ${p.status==='blocked'?'approve':'flag'}" onclick="togglePostStatus(${p.id})" title="${p.status==='blocked'?'Débloquer':'Bloquer'}"><i class="fas ${p.status==='blocked'?'fa-check-circle':'fa-ban'}"></i></button><button class="icon-btn delete" onclick="deletePost(${p.id})" title="Supprimer"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div></div>`;
-    }
-    function commentRow(c) {
-        const isBlocked = c.status === 'rejected';
-        const statusBadge = c.status === 'approved'
-            ? `<span class="status-badge status-approved">Approuvé</span>`
-            : c.status === 'rejected'
-                ? `<span class="status-badge status-blocked">Bloqué</span>`
-                : `<span class="status-badge status-pending">En attente</span>`;
-        const toggleBtn = (c.status === 'approved' || c.status === 'rejected')
-            ? `<button class="icon-btn ${isBlocked?'approve':'flag'}" onclick="toggleComment(${c.id})" title="${isBlocked?'Débloquer':'Bloquer'}"><i class="fas ${isBlocked?'fa-check-circle':'fa-ban'}"></i></button>`
-            : `<button class="icon-btn approve" onclick="approveComment(${c.id})" title="Approuver"><i class="fas fa-check-circle"></i></button>`;
-        return `<tr><td>${escapeHtml(c.user_name)}</td><td>${escapeHtml(c.text.substring(0,60))}${c.text.length>60?'...':''}</td><td>${escapeHtml(c.post_content)}...</td><td>${escapeHtml(c.doctor_name)}</td><td>${c.date}</td><td>${statusBadge}</td><td>${toggleBtn}<button class="icon-btn delete" onclick="deleteComment(${c.id})" title="Supprimer"><i class="fas fa-trash"></i></button></td></tr>`;
-    }
-    function renderComments() {
-        const allComments = commentsData;
-        const pendingComments  = allComments.filter(c => c.status === 'pending');
-        const approvedComments = allComments.filter(c => c.status === 'approved');
-        const rejectedComments = allComments.filter(c => c.status === 'rejected');
-        if(allComments.length === 0) return `<div class="data-card"><div class="empty-state"><i class="fas fa-comments"></i><p>Aucun commentaire</p></div></div>`;
-        const thead = `<thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Publication</th><th>Médecin</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead>`;
-        return `
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">${allComments.length}</div><div class="stat-label">Total</div></div>
-            <div class="stat-card"><div class="stat-number">${pendingComments.length}</div><div class="stat-label">En attente</div></div>
-            <div class="stat-card"><div class="stat-number">${approvedComments.length}</div><div class="stat-label">Approuvés</div></div>
-            <div class="stat-card"><div class="stat-number">${rejectedComments.length}</div><div class="stat-label">Bloqués</div></div>
-        </div>
-        ${pendingComments.length ? `<div class="data-card"><h5 class="mb-3"><i class="fas fa-clock me-2"></i>En attente (${pendingComments.length})</h5><table class="data-table">${thead}<tbody>${pendingComments.map(commentRow).join('')}</tbody></table></div>` : ''}
-        <div class="data-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5><i class="fas fa-check-circle me-2"></i>Approuvés (${approvedComments.length})</h5>
-                <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('approvedCommentsTable','commentaires.pdf')"><i class="fas fa-file-pdf"></i> PDF</span>
-            </div>
-            <div id="approvedCommentsTable"><table class="data-table">${thead}<tbody>${approvedComments.length ? approvedComments.map(commentRow).join('') : '<tr><td colspan="7" class="text-center text-muted py-3">Aucun commentaire approuvé</td></tr>'}</tbody></table></div>
-        </div>
-        ${rejectedComments.length ? `<div class="data-card"><h5 class="mb-3"><i class="fas fa-ban me-2" style="color:#e74c3c;"></i>Bloqués (${rejectedComments.length})</h5><table class="data-table">${thead}<tbody>${rejectedComments.map(commentRow).join('')}</tbody></table></div>` : ''}`;
-    }
-    async function toggleComment(commentId) {
-        const c = commentsData.find(x => x.id === commentId);
-        const newStatut = (c && c.status === 'rejected') ? 'approved' : 'rejected';
-        try { const r = await fetch(window.location.pathname + '?action=update-comment-status', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:commentId,statut:newStatut})}); const result = await r.json(); if(result.success){await loadCommentsData();loadModuleContent(currentModule);showNotification(newStatut==='approved'?'Commentaire débloqué':'Commentaire bloqué');} else showNotification(result.error||'Erreur',true); } catch(e){showNotification('Erreur: '+e.message,true);}
-    }
-    async function approveComment(commentId) { try { const r = await fetch(window.location.pathname + '?action=update-comment-status', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:commentId,statut:'approved'})}); const result = await r.json(); if(result.success){await loadCommentsData();loadModuleContent(currentModule);showNotification('Commentaire approuvé');} else showNotification(result.error||'Erreur',true); } catch(e){showNotification('Erreur: '+e.message,true);} }
-    async function reportComment(commentId) { try { const r = await fetch(window.location.pathname + '?action=update-comment-status', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:commentId,statut:'rejected'})}); const result = await r.json(); if(result.success){await loadCommentsData();loadModuleContent(currentModule);showNotification('Commentaire bloqué');} else showNotification(result.error||'Erreur',true); } catch(e){showNotification('Erreur: '+e.message,true);} }
-    async function deleteComment(commentId) { if(!confirm('Supprimer ce commentaire définitivement ?')) return; try { const r = await fetch(window.location.pathname + '?action=delete-comment-db', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:commentId})}); const result = await r.json(); if(result.success){await loadCommentsData();loadModuleContent(currentModule);showNotification('Commentaire supprimé');} else showNotification(result.error||'Erreur',true); } catch(e){showNotification('Erreur: '+e.message,true);} }
-=======
                     <div class="btn-group-actions">
                         <button class="btn-medical btn-sm" onclick="showAddConsultationModal()"><i class="fas fa-plus"></i> Nouvelle consultation</button>
                         <button class="btn-outline-medical btn-sm" onclick="showStats('Consultations')"><i class="fas fa-chart-line"></i> Statistiques</button>
@@ -2475,48 +1950,144 @@ $usersApiBase = gh_users_api_base();
     }
     
     // ==================== FORUM PUBLICATIONS ====================
+    function getFilteredPosts() {
+        const search = (document.getElementById('forumSearch')?.value || '').toLowerCase();
+        const statusFilter = document.getElementById('forumStatusFilter')?.value || '';
+        return forumPosts.filter(p => {
+            const matchSearch = !search ||
+                (p.doctor_name||'').toLowerCase().includes(search) ||
+                (p.content||'').toLowerCase().includes(search);
+            const matchStatus = !statusFilter || p.status === statusFilter;
+            return matchSearch && matchStatus;
+        });
+    }
+
+    function filterForumTable() {
+        const filtered = getFilteredPosts();
+        const tbody = document.getElementById('forumTableBody');
+        const count = document.getElementById('forumResultCount');
+        if (count) count.textContent = `Résultats: ${filtered.length} publication(s)`;
+        if (tbody) tbody.innerHTML = filtered.map(p => `<tr>
+            <td>${escapeHtml(p.doctor_name)}</td>
+            <td title="${escapeHtml(p.content||'')}">${escapeHtml((p.content||'').substring(0,50))}${(p.content||'').length>50?'...':''}</td>
+            <td>${p.date ? p.date.substring(0,10) : ''}</td>
+            <td><span class="status-badge ${p.status==='approved'?'status-approved':'status-pending'}">${p.status==='approved'?'Approuvée':'Bloquée'}</span></td>
+            <td>
+                <button class="icon-btn ${p.status==='approved'?'flag':'approve'}" onclick="togglePostStatus(${p.id})"><i class="fas ${p.status==='approved'?'fa-ban':'fa-check-circle'}"></i></button>
+                <button class="icon-btn delete" onclick="deletePost(${p.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-3">Aucun résultat</td></tr>';
+    }
+
+    function buildForumStats() {
+        const total = forumPosts.length;
+        const approved = forumPosts.filter(p => p.status === 'approved').length;
+        const blocked = forumPosts.filter(p => p.status === 'blocked').length;
+        const gemini = forumPosts.filter(p => (p.moderation_source || '') === 'gemini').length;
+        const fallback = forumPosts.filter(p => (p.moderation_source || 'fallback') === 'fallback').length;
+        const avgToxicity = total ? forumPosts.reduce((sum, p) => sum + Number(p.toxicity_score || 0), 0) / total : 0;
+        const avgSensitive = total ? forumPosts.reduce((sum, p) => sum + Number(p.sensitive_score || 0), 0) / total : 0;
+        const avgMedical = total ? forumPosts.reduce((sum, p) => sum + Number(p.medical_risk_score || 0), 0) / total : 0;
+        const byDoctor = {};
+        forumPosts.forEach(p => {
+            const name = p.doctor_name || 'Medecin';
+            if (!byDoctor[name]) byDoctor[name] = {total: 0, approved: 0, blocked: 0};
+            byDoctor[name].total++;
+            if (p.status === 'approved') byDoctor[name].approved++;
+            if (p.status === 'blocked') byDoctor[name].blocked++;
+        });
+        const topDoctors = Object.entries(byDoctor).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
+        return {total, approved, blocked, gemini, fallback, avgToxicity, avgSensitive, avgMedical, topDoctors};
+    }
+
+    function renderForumStatsPanel() {
+        const s = buildForumStats();
+        const approvalRate = s.total ? Math.round((s.approved / s.total) * 100) : 0;
+        const blockedRate = s.total ? Math.round((s.blocked / s.total) * 100) : 0;
+        return `
+            <div id="forumStatsPanel" class="data-card" style="display:none; box-shadow:none; border:1px solid #eef2f7; margin-bottom:16px;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Statistiques des publications</h5>
+                    <button class="btn-outline-medical btn-sm" onclick="toggleForumStats()"><i class="fas fa-times me-1"></i>Fermer</button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-number">${approvalRate}%</div><div class="stat-label">Taux approbation</div><small>${s.approved}/${s.total} publication(s)</small></div>
+                    <div class="stat-card"><div class="stat-number">${blockedRate}%</div><div class="stat-label">Taux blocage</div><small>${s.blocked}/${s.total} publication(s)</small></div>
+                    <div class="stat-card"><div class="stat-number">${s.gemini}</div><div class="stat-label">Analyses Gemini</div><small>${s.fallback} fallback</small></div>
+                </div>
+                <h6 class="mb-2">Scores IA moyens</h6>
+                <div class="chart-bar"><div class="chart-bar-fill" style="width:${Math.round(s.avgToxicity * 100)}%">Toxicite ${percentScore(s.avgToxicity)}</div></div>
+                <div class="chart-bar"><div class="chart-bar-fill" style="width:${Math.round(s.avgSensitive * 100)}%">Sensible ${percentScore(s.avgSensitive)}</div></div>
+                <div class="chart-bar"><div class="chart-bar-fill" style="width:${Math.round(s.avgMedical * 100)}%">Risque medical ${percentScore(s.avgMedical)}</div></div>
+                <h6 class="mt-3 mb-2">Publications par medecin</h6>
+                <table class="data-table">
+                    <thead><tr><th>Medecin</th><th>Total</th><th>Approuvees</th><th>Bloquees</th></tr></thead>
+                    <tbody>${s.topDoctors.map(([name, data]) => `<tr><td>${escapeHtml(name)}</td><td>${data.total}</td><td>${data.approved}</td><td>${data.blocked}</td></tr>`).join('') || '<tr><td colspan="4" class="text-center text-muted">Aucune donnee</td></tr>'}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function toggleForumStats() {
+        const panel = document.getElementById('forumStatsPanel');
+        if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
     function renderForum() {
         const approvedPosts = forumPosts.filter(p => p.status === 'approved').length;
-        const pendingPosts = forumPosts.filter(p => p.status === 'pending').length;
-        
+        const blockedPosts = forumPosts.filter(p => p.status === 'blocked').length;
+
         if(forumPosts.length === 0) {
-            return `<div class="data-card"><div class="empty-state"><i class="fas fa-newspaper"></i><p>Aucune publication</p><button class="btn btn-medical" onclick="showAddPostModal()"><i class="fas fa-plus"></i> Nouvelle publication</button></div></div>`;
+            return `<div class="data-card"><div class="empty-state"><i class="fas fa-newspaper"></i><p>Aucune publication</p></div></div>`;
         }
-        
+
+        const initialRows = forumPosts.map(p => `<tr>
+            <td>${escapeHtml(p.doctor_name)}</td>
+            <td>${escapeHtml((p.content||'').substring(0,50))}${(p.content||'').length>50?'...':''}</td>
+            <td>${p.date ? p.date.substring(0,10) : ''}</td>
+            <td><span class="status-badge ${p.status==='approved'?'status-approved':'status-pending'}">${p.status==='approved'?'Approuvée':'Bloquée'}</span></td>
+            <td>
+                <button class="icon-btn ${p.status==='approved'?'flag':'approve'}" onclick="togglePostStatus(${p.id})"><i class="fas ${p.status==='approved'?'fa-ban':'fa-check-circle'}"></i></button>
+                <button class="icon-btn delete" onclick="deletePost(${p.id})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join('');
+
         return `
             <div class="stats-grid">
                 <div class="stat-card"><div class="stat-number">${forumPosts.length}</div><div class="stat-label">Total publications</div></div>
                 <div class="stat-card"><div class="stat-number">${approvedPosts}</div><div class="stat-label">Approuvées</div></div>
-                <div class="stat-card"><div class="stat-number">${pendingPosts}</div><div class="stat-label">En attente</div></div>
+                <div class="stat-card"><div class="stat-number">${blockedPosts}</div><div class="stat-label">Bloquées</div></div>
             </div>
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-newspaper me-2"></i>Publications des médecins</h5>
                     <div class="btn-group-actions">
-                        <button class="btn-medical btn-sm" onclick="showAddPostModal()"><i class="fas fa-plus"></i> Nouvelle</button>
-                        <button class="btn-outline-medical btn-sm" onclick="showStats('Publications')"><i class="fas fa-chart-line"></i> Statistiques</button>
+                        <button class="btn-outline-medical btn-sm" onclick="toggleForumStats()"><i class="fas fa-chart-line"></i> Statistiques</button>
                         <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('forumTable', 'forum-publications.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
                     </div>
                 </div>
+                ${renderForumStatsPanel()}
+                <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+                    <input type="text" id="forumSearch"
+                        placeholder="Rechercher par médecin ou contenu..."
+                        class="form-control form-control-custom" style="flex:1;min-width:220px;"
+                        oninput="filterForumTable()">
+                    <select id="forumStatusFilter" class="form-select form-control-custom" style="width:170px;" onchange="filterForumTable()">
+                        <option value="">Tous les statuts</option>
+                        <option value="approved">Approuvées</option>
+                        <option value="blocked">Bloquées</option>
+                    </select>
+                </div>
+                <div id="forumResultCount" class="text-muted small mb-2">Résultats: ${forumPosts.length} publication(s)</div>
                 <div id="forumTable">
                 <table class="data-table"><thead><tr><th>Médecin</th><th>Contenu</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead>
-                <tbody>${forumPosts.map(p => `<tr>
-                    <td>${escapeHtml(p.doctor_name)}</td>
-                    <td>${escapeHtml(p.content.substring(0,50))}...</td>
-                    <td>${p.date}</td>
-                    <td><span class="status-badge ${p.status==='approved'?'status-approved':'status-pending'}">${p.status}</span></td>
-                    <td>
-                        <button class="icon-btn edit" onclick="editPost(${p.id})"><i class="fas fa-edit"></i></button>
-                        <button class="icon-btn ${p.status==='approved'?'flag':'approve'}" onclick="togglePostStatus(${p.id})"><i class="fas ${p.status==='approved'?'fa-ban':'fa-check-circle'}"></i></button>
-                        <button class="icon-btn delete" onclick="deletePost(${p.id})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`).join('')}</tbody>
+                <tbody id="forumTableBody">${initialRows}</tbody>
                 </table>
                 </div>
             </div>
         `;
     }
-    
+
     function showAddPostModal() {
         const select = document.getElementById('postDoctorId');
         const doctors = usersData.filter(u => u.role === 'medecin');
@@ -2552,115 +2123,311 @@ $usersApiBase = gh_users_api_base();
         refreshModule();
     });
     
-    function editPost(id) { showNotification('Fonctionnalité d\'édition à venir'); }
-    function togglePostStatus(id) {
-        const post = forumPosts.find(p => p.id === id);
-        if(post) { post.status = post.status === 'approved' ? 'pending' : 'approved'; savePosts(); syncWithFrontoffice(); showNotification(`Publication ${post.status === 'approved' ? 'approuvée' : 'désapprouvée'}`); refreshModule(); }
+    async function togglePostStatus(id) {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=toggle-publication-status`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id})
+            });
+            const data = await res.json();
+            if (data.success) {
+                const post = forumPosts.find(p => p.id === id);
+                if (post) post.status = data.statut;
+                showNotification(`Publication ${data.statut === 'approved' ? 'approuvée' : 'bloquée'}`);
+                filterForumTable();
+            } else showNotification(data.error || 'Erreur', true);
+        } catch(e) { showNotification(e.message, true); }
     }
-    function deletePost(id) {
-        if(confirm('Supprimer cette publication ?')){ forumPosts = forumPosts.filter(p => p.id !== id); savePosts(); syncWithFrontoffice(); showNotification('Publication supprimée'); refreshModule(); }
+    async function deletePost(id) {
+        if(!confirm('Supprimer cette publication ?')) return;
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-delete-publication`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id})
+            });
+            const data = await res.json();
+            if (data.success) {
+                forumPosts = forumPosts.filter(p => p.id !== id);
+                allCommentsFromDb = allCommentsFromDb.filter(c => c.id_publication !== id);
+                showNotification('Publication supprimée');
+                refreshModule();
+            } else showNotification(data.error || 'Erreur', true);
+        } catch(e) { showNotification(e.message, true); }
+    }
+
+    function moderationBadgeClass(status) {
+        if (status === 'blocked') return 'status-danger';
+        if (status === 'review') return 'status-warning';
+        return 'status-approved';
+    }
+
+    function moderationLabel(status) {
+        if (status === 'blocked') return 'Bloqué';
+        if (status === 'review') return 'À vérifier';
+        return 'Validé';
+    }
+
+    function percentScore(value) {
+        return `${Math.round(Number(value || 0) * 100)}%`;
+    }
+
+    function renderModeration() {
+        const reviewCount = moderationPosts.filter(p => p.moderation_status === 'review').length;
+        const blockedCount = moderationPosts.filter(p => p.moderation_status === 'blocked').length;
+        const rows = moderationPosts.map(p => `
+            <div class="data-card mb-3">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div style="min-width:260px;flex:1;">
+                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                            <h6 class="mb-0">${escapeHtml(p.doctor_name || 'Médecin')}</h6>
+                            <span class="status-badge ${moderationBadgeClass(p.moderation_status)}">${moderationLabel(p.moderation_status)}</span>
+                            <span class="text-muted small">Source: ${escapeHtml(p.moderation_source || 'fallback')}</span>
+                        </div>
+                        <p class="text-muted small mb-2">${p.date ? escapeHtml(p.date.substring(0,16)) : ''}</p>
+                        <p class="mb-2">${escapeHtml(p.content || '')}</p>
+                        <p class="text-muted small mb-0">${escapeHtml(p.moderation_reason || 'Aucune raison détaillée.')}</p>
+                    </div>
+                    <div style="min-width:260px;">
+                        <div class="small text-muted mb-2">
+                            Toxicité: <strong>${percentScore(p.toxicity_score)}</strong> ·
+                            Sensible: <strong>${percentScore(p.sensitive_score)}</strong> ·
+                            Risque médical: <strong>${percentScore(p.medical_risk_score)}</strong>
+                        </div>
+                        <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <button class="btn btn-success btn-sm" onclick="setPublicationModerationStatus(${p.id}, 'safe')">
+                                <i class="fas fa-check-circle me-1"></i>Approuver
+                            </button>
+                            <button class="btn btn-danger btn-sm" onclick="setPublicationModerationStatus(${p.id}, 'blocked')">
+                                <i class="fas fa-ban me-1"></i>Bloquer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        return `
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-number">${moderationPosts.length}</div><div class="stat-label">Publications signalées</div></div>
+                <div class="stat-card"><div class="stat-number">${reviewCount}</div><div class="stat-label">À vérifier</div></div>
+                <div class="stat-card"><div class="stat-number">${blockedCount}</div><div class="stat-label">Bloquées par IA</div></div>
+            </div>
+            <div class="data-card">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-1"><i class="fas fa-shield-alt me-2"></i>Modération IA - Forum</h5>
+                        <p class="text-muted small mb-0">Vérifiez les publications détectées automatiquement avant leur affichage public.</p>
+                    </div>
+                    <button class="btn-outline-medical btn-sm" onclick="refreshModule()"><i class="fas fa-sync-alt me-1"></i>Actualiser</button>
+                </div>
+                ${rows || '<div class="empty-state"><i class="fas fa-shield-alt"></i><p>Aucune publication signalée.</p><small>Les nouveaux contenus suspects apparaîtront ici.</small></div>'}
+            </div>
+        `;
+    }
+
+    async function setPublicationModerationStatus(id, status) {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=set-publication-moderation-status`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id, status})
+            });
+            const data = await res.json();
+            if (!data.success) {
+                showNotification(data.error || 'Erreur de modération', true);
+                return;
+            }
+            moderationPosts = moderationPosts.filter(p => p.id !== id);
+            const post = forumPosts.find(p => p.id === id);
+            if (post) {
+                post.status = data.statut;
+                post.moderation_status = data.moderation_status;
+            }
+            showNotification(status === 'safe' ? 'Publication approuvée' : 'Publication bloquée');
+            document.getElementById('moduleContent').innerHTML = renderModeration();
+        } catch(e) {
+            showNotification(e.message, true);
+        }
     }
     
     // ==================== COMMENTAIRES ====================
+    let commentSortField = 'date';
+    let commentSortDir = -1;
+
+    function commentStatutLabel(statut) {
+        if (statut === 'publie') return 'Publié';
+        if (statut === 'en_attente') return 'En attente';
+        return 'Supprimé';
+    }
+    function commentStatutClass(statut) {
+        if (statut === 'publie') return 'status-approved';
+        if (statut === 'en_attente') return 'status-pending';
+        return 'status-reported';
+    }
+
+    function renderCommentRow(c) {
+        const isBlocked = c.statut === 'supprime';
+        const isPending = c.statut === 'en_attente';
+        return `<tr>
+            <td>${escapeHtml(c.user_name||'')}</td>
+            <td title="${escapeHtml(c.contenu||'')}">${escapeHtml((c.contenu||'').substring(0,60))}${(c.contenu||'').length>60?'...':''}</td>
+            <td>${escapeHtml((c.post_content||'').substring(0,40))}${(c.post_content||'').length>40?'...':''}</td>
+            <td>${escapeHtml(c.doctor_name||'')}</td>
+            <td>
+                <div class="small">
+                    <div>Tox: <strong>${percentScore(c.toxicity_score)}</strong></div>
+                    <div>Sens: <strong>${percentScore(c.sensitive_score)}</strong></div>
+                    <div>Med: <strong>${percentScore(c.medical_risk_score)}</strong></div>
+                    <div class="text-muted" title="${escapeHtml(c.moderation_reason || '')}">${escapeHtml(c.moderation_source || 'fallback')}</div>
+                </div>
+            </td>
+            <td>${(c.date_publication||'').substring(0,10)}</td>
+            <td><span class="status-badge ${commentStatutClass(c.statut)}">${commentStatutLabel(c.statut)}</span></td>
+            <td>
+                ${(isPending||isBlocked)?`<button class="icon-btn approve" onclick="approveComment(${c.id_commentaire})" title="Approuver"><i class="fas fa-check-circle"></i></button>`:''}
+                ${(!isBlocked&&!isPending)?`<button class="icon-btn flag" onclick="blockComment(${c.id_commentaire})" title="Bloquer"><i class="fas fa-ban"></i></button>`:''}
+                <button class="icon-btn delete" onclick="deleteCommentDb(${c.id_commentaire})" title="Supprimer"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }
+
+    function getFilteredComments() {
+        const search = (document.getElementById('commentSearch')?.value || '').toLowerCase();
+        const statusFilter = document.getElementById('commentStatusFilter')?.value || '';
+        let filtered = allCommentsFromDb.filter(c => {
+            const matchSearch = !search ||
+                (c.contenu||'').toLowerCase().includes(search) ||
+                (c.user_name||'').toLowerCase().includes(search) ||
+                (c.doctor_name||'').toLowerCase().includes(search) ||
+                (c.post_content||'').toLowerCase().includes(search);
+            const matchStatus = !statusFilter || c.statut === statusFilter;
+            return matchSearch && matchStatus;
+        });
+        filtered = [...filtered].sort((a, b) => {
+            let va, vb;
+            if (commentSortField === 'alpha') { va = (a.user_name||'').toLowerCase(); vb = (b.user_name||'').toLowerCase(); }
+            else if (commentSortField === 'statut') { va = a.statut||''; vb = b.statut||''; }
+            else { va = a.date_publication||''; vb = b.date_publication||''; }
+            return commentSortDir * (va < vb ? -1 : va > vb ? 1 : 0);
+        });
+        return filtered;
+    }
+
+    function filterCommentsTable() {
+        const filtered = getFilteredComments();
+        const tbody = document.getElementById('commentsTableBody');
+        const count = document.getElementById('commentsResultCount');
+        if (count) count.textContent = `Résultats: ${filtered.length} commentaire(s)`;
+        if (tbody) tbody.innerHTML = filtered.map(renderCommentRow).join('') || '<tr><td colspan="8" class="text-center text-muted py-3">Aucun résultat</td></tr>';
+    }
+
+    function sortCommentsBy(field) {
+        if (commentSortField === field) commentSortDir *= -1; else { commentSortField = field; commentSortDir = -1; }
+        filterCommentsTable();
+    }
+
     function renderComments() {
-        const allComments = forumPosts.flatMap(p => (p.comments || []).map(c => ({ ...c, post_id: p.id, post_content: p.content.substring(0,30), doctor_name: p.doctor_name })));
-        const pendingComments = allComments.filter(c => c.status === 'pending');
-        const approvedComments = allComments.filter(c => c.status === 'approved');
-        
+        const allComments = allCommentsFromDb;
+        const pendingCount  = allComments.filter(c => c.statut === 'en_attente').length;
+        const publishedCount = allComments.filter(c => c.statut === 'publie').length;
+        const blockedCount  = allComments.filter(c => c.statut === 'supprime').length;
+
         if(allComments.length === 0) {
             return `<div class="data-card"><div class="empty-state"><i class="fas fa-comments"></i><p>Aucun commentaire</p></div></div>`;
         }
-        
+
+        const thead = `<thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Publication</th><th>Médecin</th><th>IA</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead>`;
+        const initialRows = allComments.map(renderCommentRow).join('');
+
         return `
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-number">${allComments.length}</div><div class="stat-label">Total commentaires</div></div>
-                <div class="stat-card"><div class="stat-number">${pendingComments.length}</div><div class="stat-label">En attente</div></div>
-                <div class="stat-card"><div class="stat-number">${approvedComments.length}</div><div class="stat-label">Approuvés</div></div>
+                <div class="stat-card"><div class="stat-number">${allComments.length}</div><div class="stat-label">Total</div></div>
+                <div class="stat-card"><div class="stat-number">${pendingCount}</div><div class="stat-label">En attente</div></div>
+                <div class="stat-card"><div class="stat-number">${publishedCount}</div><div class="stat-label">Publiés</div></div>
+                <div class="stat-card"><div class="stat-number">${blockedCount}</div><div class="stat-label">Bloqués</div></div>
             </div>
-            ${pendingComments.length ? `<div class="data-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5><i class="fas fa-clock me-2"></i>Commentaires en attente (${pendingComments.length})</h5>
-                    <button class="btn-outline-medical btn-sm" onclick="showStats('Commentaires')"><i class="fas fa-chart-line"></i> Statistiques</button>
-                </div>
-                <div id="pendingCommentsTable">
-                <table class="data-table"><thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Médecin</th><th>Actions</th></tr></thead>
-                <tbody>${pendingComments.map(c => `<tr>
-                    <td>${escapeHtml(c.user_name)}</td>
-                    <td>${escapeHtml(c.text)}</td>
-                    <td>${escapeHtml(c.doctor_name)}</td>
-                    <td>
-                        <button class="icon-btn approve" onclick="approveComment(${c.id}, ${c.post_id})"><i class="fas fa-check-circle"></i></button>
-                        <button class="icon-btn flag" onclick="reportComment(${c.id}, ${c.post_id})"><i class="fas fa-flag"></i></button>
-                        <button class="icon-btn delete" onclick="deleteComment(${c.id}, ${c.post_id})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`).join('')}</tbody>
-                </table>
-                </div>
-            </div>` : ''}
             <div class="data-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5><i class="fas fa-check-circle me-2"></i>Commentaires approuvés (${approvedComments.length})</h5>
-                    <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('approvedCommentsTable', 'commentaires-approuves.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
+                    <h5><i class="fas fa-comments me-2"></i>Gestion des commentaires</h5>
+                    <span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('allCommentsTable', 'commentaires.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span>
                 </div>
-                <div id="approvedCommentsTable">
-                <table class="data-table"><thead><tr><th>Utilisateur</th><th>Commentaire</th><th>Statut</th><th>Actions</th><tr></thead>
-                <tbody>${approvedComments.map(c => `<tr>
-                    <td>${escapeHtml(c.user_name)}</td>
-                    <td>${escapeHtml(c.text)}</td>
-                    <td><span class="status-badge status-approved">Approuvé</span></td>
-                    <td><button class="icon-btn flag" onclick="reportComment(${c.id}, ${c.post_id})"><i class="fas fa-flag"></i></button><button class="icon-btn delete" onclick="deleteComment(${c.id}, ${c.post_id})"><i class="fas fa-trash"></i></button></td>
-                </tr>`).join('')}</tbody>
-                </table>
+                <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+                    <input type="text" id="commentSearch"
+                        placeholder="Rechercher un commentaire, utilisateur ou médecin..."
+                        class="form-control form-control-custom" style="flex:1;min-width:220px;"
+                        oninput="filterCommentsTable()">
+                    <select id="commentStatusFilter" class="form-select form-control-custom" style="width:170px;" onchange="filterCommentsTable()">
+                        <option value="">Tous les statuts</option>
+                        <option value="publie">Publiés</option>
+                        <option value="en_attente">En attente</option>
+                        <option value="supprime">Bloqués</option>
+                    </select>
+                    <button class="btn-outline-medical btn-sm" onclick="sortCommentsBy('date')" title="Trier par date"><i class="fas fa-calendar-alt me-1"></i>Date</button>
+                    <button class="btn-outline-medical btn-sm" onclick="sortCommentsBy('alpha')" title="Trier par utilisateur"><i class="fas fa-sort-alpha-down me-1"></i>Alphabet</button>
+                    <button class="btn-outline-medical btn-sm" onclick="sortCommentsBy('statut')" title="Trier par statut"><i class="fas fa-filter me-1"></i>Statut</button>
+                </div>
+                <div id="commentsResultCount" class="text-muted small mb-2">Résultats: ${allComments.length} commentaire(s)</div>
+                <div id="allCommentsTable">
+                <table class="data-table">${thead}<tbody id="commentsTableBody">${initialRows}</tbody></table>
                 </div>
             </div>
         `;
     }
-    
-    function findAndUpdateComment(commentId, postId, updateFn) {
-        const post = forumPosts.find(p => p.id === postId);
-        if(post && post.comments) {
-            const commentIndex = post.comments.findIndex(c => c.id === commentId);
-            if(commentIndex !== -1) { updateFn(post.comments[commentIndex]); savePosts(); syncWithFrontoffice(); refreshModule(); return true; }
-        }
-        return false;
+
+    async function approveComment(commentId) {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-update-comment-status`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id: commentId, statut: 'publie'})
+            });
+            const data = await res.json();
+            if (data.success) {
+                const c = allCommentsFromDb.find(x => x.id_commentaire == commentId);
+                if (c) c.statut = 'publie';
+                showNotification('Commentaire approuvé');
+                filterCommentsTable();
+            } else showNotification(data.error || 'Erreur', true);
+        } catch(e) { showNotification(e.message, true); }
     }
-    
-    function approveComment(commentId, postId) { findAndUpdateComment(commentId, postId, (c) => { c.status = 'approved'; }); showNotification('Commentaire approuvé'); }
-    function reportComment(commentId, postId) { findAndUpdateComment(commentId, postId, (c) => { c.status = 'reported'; }); showNotification('Commentaire signalé'); }
-    function deleteComment(commentId, postId) {
-        if(confirm('Supprimer ce commentaire ?')) {
-            const post = forumPosts.find(p => p.id === postId);
-            if(post && post.comments) { post.comments = post.comments.filter(c => c.id !== commentId); savePosts(); syncWithFrontoffice(); showNotification('Commentaire supprimé'); refreshModule(); }
-        }
+
+    async function blockComment(commentId) {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-update-comment-status`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id: commentId, statut: 'supprime'})
+            });
+            const data = await res.json();
+            if (data.success) {
+                const c = allCommentsFromDb.find(x => x.id_commentaire == commentId);
+                if (c) c.statut = 'supprime';
+                showNotification('Commentaire bloqué');
+                filterCommentsTable();
+            } else showNotification(data.error || 'Erreur', true);
+        } catch(e) { showNotification(e.message, true); }
+    }
+
+    async function deleteCommentDb(commentId) {
+        if(!confirm('Supprimer ce commentaire ?')) return;
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-delete-comment`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id: commentId})
+            });
+            const data = await res.json();
+            if (data.success) {
+                allCommentsFromDb = allCommentsFromDb.filter(c => c.id_commentaire != commentId);
+                showNotification('Commentaire supprimé');
+                filterCommentsTable();
+            } else showNotification(data.error || 'Erreur', true);
+        } catch(e) { showNotification(e.message, true); }
     }
     
     // ==================== AVIS PATIENTS ====================
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
     function renderReviews() {
         const pendingReviews = reviewsData.filter(r => r.status === 'pending');
         const approvedReviews = reviewsData.filter(r => r.status === 'approved');
         const reportedReviews = reviewsData.filter(r => r.status === 'reported');
         const avgRating = approvedReviews.length ? (approvedReviews.reduce((s,r)=>s+r.rating,0)/approvedReviews.length).toFixed(1) : 0;
-<<<<<<< HEAD
-        const ratingCounts = {1:0,2:0,3:0,4:0,5:0}; approvedReviews.forEach(r => ratingCounts[r.rating]++);
-        if(reviewsData.length === 0) return `<div class="data-card"><div class="empty-state"><i class="fas fa-star"></i><p>Aucun avis patient</p><button class="btn btn-medical" onclick="showNotifyReviewModal()"><i class="fas fa-bell"></i> Notifier un patient</button></div></div>`;
-        return `<div class="stats-grid"><div class="stat-card"><div class="stat-number">${avgRating}</div><div class="stat-label">Note moyenne</div></div><div class="stat-card"><div class="stat-number">${reviewsData.length}</div><div class="stat-label">Total avis</div><small>${pendingReviews.length} en attente</small></div><div class="stat-card"><div class="stat-number">${approvedReviews.length}</div><div class="stat-label">Approuvés</div><small>${reportedReviews.length} signalés</small></div></div><div class="data-card"><h6>Distribution des notes</h6>${[5,4,3,2,1].map(star => { const count = ratingCounts[star]; const pct = approvedReviews.length ? (count/approvedReviews.length*100) : 0; return `<div class="chart-bar"><div class="chart-bar-fill" style="width:${pct}%">${star}★ (${count})</div></div>`; }).join('')}</div>${pendingReviews.length ? `<div class="data-card"><div class="d-flex justify-content-between align-items-center mb-3"><h5>Avis en attente (${pendingReviews.length})</h5><button class="btn-outline-medical btn-sm" onclick="showStats('Avis Patients')"><i class="fas fa-chart-line"></i> Statistiques</button></div><div id="pendingReviewsTable"><table class="data-table"><thead><tr><th>Patient</th><th>Médecin</th><th>Note</th><th>Commentaire</th><th>Actions</th></tr></thead><tbody>${pendingReviews.map(r => `<tr><td>${escapeHtml(r.patient_name)}</td><td>${escapeHtml(r.doctor_name)}</td><td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td><td>${escapeHtml(r.comment)}</td><td><button class="icon-btn approve" onclick="approveReview(${r.id})"><i class="fas fa-check-circle"></i></button><button class="icon-btn flag" onclick="reportReview(${r.id})"><i class="fas fa-flag"></i></button><button class="icon-btn delete" onclick="deleteReview(${r.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div></div>` : ''}<div class="data-card"><button class="btn-medical me-2" onclick="showNotifyReviewModal()"><i class="fas fa-bell"></i> Notifier un patient</button><button class="btn-outline-medical" onclick="exportToPDF('pendingReviewsTable', 'avis-patients.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF avis</button><button class="btn-outline-medical ms-2" onclick="sendAutoReviewNotification()"><i class="fas fa-clock"></i> Auto-notification</button></div>`;
-    }
-    function renderAppointments() {
-        if(appointmentsData.length === 0) return `<div class="data-card"><div class="empty-state"><i class="fas fa-calendar-alt"></i><p>Aucun rendez-vous</p></div></div>`;
-        const paidAppointments = appointmentsData.filter(a => a.payment_status === 'payé').length;
-        const pendingPayments = appointmentsData.filter(a => a.payment_status === 'en attente').length;
-        const totalAmount = appointmentsData.reduce((sum, a) => sum + (a.amount || 0), 0);
-        return `<div class="stats-grid"><div class="stat-card"><div class="stat-number">${appointmentsData.length}</div><div class="stat-label">Total RDV</div></div><div class="stat-card"><div class="stat-number">${paidAppointments}</div><div class="stat-label">Payés</div></div><div class="stat-card"><div class="stat-number">${pendingPayments}</div><div class="stat-label">En attente</div></div><div class="stat-card"><div class="stat-number">${totalAmount}€</div><div class="stat-label">CA total</div></div></div><div class="data-card"><div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Liste des rendez-vous</h5><div class="btn-group-actions"><button class="btn-outline-medical btn-sm" onclick="showStats('Rendez-vous')"><i class="fas fa-chart-line"></i> Statistiques</button><span class="export-btn btn-outline-medical btn-sm" onclick="exportToPDF('appointmentsTable', 'rendez-vous.pdf')"><i class="fas fa-file-pdf"></i> Exporter PDF</span></div></div><div id="appointmentsTable"><table class="data-table"><thead><tr><th>Patient</th><th>Médecin</th><th>Date</th><th>Montant</th><th>Paiement</th><th>Actions</th></tr></thead><tbody>${appointmentsData.map(a => `<tr><td>${escapeHtml(a.patient_name)}</td><td>${escapeHtml(a.doctor_name)}</td><td>${a.date}</td><td>${a.amount}€</td><td><span class="status-badge ${a.payment_status==='payé'?'status-approved':'status-pending'}">${a.payment_status}</span></td><td><button class="icon-btn" onclick="confirmPayment(${a.id})"><i class="fas fa-credit-card"></i></button><button class="icon-btn delete" onclick="deleteAppointment(${a.id})"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div></div>`;
-    }
-    
-    async function initBackoffice() { await loadAllData(); syncWithFrontoffice(); attachValidatedEvents(); switchModule('dashboard'); }
-    initBackoffice();
-     
-</script>
-</body>
-</html>
-=======
         const ratingCounts = {1:0,2:0,3:0,4:0,5:0};
         approvedReviews.forEach(r => ratingCounts[r.rating]++);
         
@@ -2708,6 +2475,52 @@ $usersApiBase = gh_users_api_base();
     function reportReview(id) { const r = reviewsData.find(r => r.id === id); if(r){ r.status = 'reported'; saveReviews(); syncWithFrontoffice(); showNotification(`Avis signalé`); refreshModule(); } }
     function deleteReview(id) { if(confirm('Supprimer cet avis ?')){ reviewsData = reviewsData.filter(r => r.id !== id); saveReviews(); syncWithFrontoffice(); showNotification('Avis supprimé'); refreshModule(); } }
     
+    async function updateReviewStatusDb(id, status) {
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-update-review-status`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id, statut: status})
+            });
+            const data = await res.json();
+            if (!data.success) {
+                showNotification(data.error || 'Erreur avis', true);
+                return;
+            }
+            const r = reviewsData.find(item => item.id === id);
+            if (r) r.status = status;
+            syncWithFrontoffice();
+            showNotification(status === 'approved' ? 'Avis approuve' : 'Avis signale');
+            refreshModule();
+        } catch(e) {
+            showNotification(e.message, true);
+        }
+    }
+
+    approveReview = function(id) { updateReviewStatusDb(id, 'approved'); };
+    reportReview = function(id) { updateReviewStatusDb(id, 'reported'); };
+    deleteReview = async function(id) {
+        if(!confirm('Supprimer cet avis ?')) return;
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=admin-delete-review`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id})
+            });
+            const data = await res.json();
+            if (!data.success) {
+                showNotification(data.error || 'Erreur suppression avis', true);
+                return;
+            }
+            reviewsData = reviewsData.filter(r => r.id !== id);
+            syncWithFrontoffice();
+            showNotification('Avis supprime');
+            refreshModule();
+        } catch(e) {
+            showNotification(e.message, true);
+        }
+    };
+
     function showNotifyReviewModal() {
         const select = document.getElementById('notifyPatientId');
         const patients = usersData.filter(u => u.role === 'patient');
@@ -2716,9 +2529,37 @@ $usersApiBase = gh_users_api_base();
         new bootstrap.Modal(document.getElementById('notifyReviewModal')).show();
     }
     
-    document.getElementById('notifyReviewForm')?.addEventListener('submit', (e) => {
+    document.getElementById('notifyReviewForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const patient = usersData.find(u => u.id == document.getElementById('notifyPatientId').value);
+        if (!patient) {
+            showNotification('Veuillez selectionner un patient', true);
+            return;
+        }
+        const message = document.getElementById('notifyMessage')?.value.trim() || '';
+        if (message.length < 5) {
+            showNotification('Message trop court', true);
+            return;
+        }
+        try {
+            const res = await fetch(`${BACKOFFICE_URL}?action=notify-review-patient`, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({id_patient: patient.id || patient.id_user, message})
+            });
+            const data = await res.json();
+            if (!data.success) {
+                showNotification(data.mail?.error || data.error || 'Email non envoye', true);
+                return;
+            }
+            showNotification(`Notification envoyee a ${patient.name || `${patient.nom || ''} ${patient.prenom || ''}`.trim()}`);
+            bootstrap.Modal.getInstance(document.getElementById('notifyReviewModal')).hide();
+            e.target.reset();
+            return;
+        } catch(error) {
+            showNotification(error.message, true);
+            return;
+        }
         if(patient) { showNotification(`📧 Notification envoyée à ${patient.name || `${patient.nom || ''} ${patient.prenom || ''}`.trim()}`); bootstrap.Modal.getInstance(document.getElementById('notifyReviewModal')).hide(); }
         else showNotification('Veuillez sélectionner un patient', true);
     });
@@ -2785,4 +2626,4 @@ $usersApiBase = gh_users_api_base();
 </script>
 </body>
 </html>
->>>>>>> 52b8028d2210e971f14b5e93de9ed204da107950
+

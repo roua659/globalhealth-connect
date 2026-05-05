@@ -302,6 +302,10 @@ class UserController
 
     public function loginPatient(): void
     {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         $input = $this->getJsonInput();
         $email = trim((string) ($input['email'] ?? ''));
         $password = (string) ($input['mot_de_passe'] ?? '');
@@ -318,7 +322,7 @@ class UserController
             }
 
             $role = trim((string) ($user['role'] ?? ''));
-            if ($role !== '' && !in_array($role, ['patient', 'medecin'], true)) {
+            if ($role !== '' && !in_array($role, ['patient', 'medecin', 'admin'], true)) {
                 $this->jsonResponse(['success' => false, 'message' => 'Utilisateur introuvable'], 404);
                 return;
             }
@@ -342,6 +346,8 @@ class UserController
                 $this->jsonResponse(['success' => false, 'message' => 'Mot de passe incorrect'], 401);
                 return;
             }
+
+            $_SESSION['user_id'] = (int) ($user['id_user'] ?? 0);
 
             $this->jsonResponse(['success' => true, 'data' => $this->normalizeUser($user)]);
         } catch (Throwable $e) {

@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Commentaire.php';
+require_once __DIR__ . '/../services/ForumModerationService.php';
 
 /**
  * CommentaireController - Handles all comment-related operations
@@ -185,14 +186,17 @@ class CommentaireController extends BaseController {
                 return $this->jsonResponse(['success' => false, 'error' => 'User ID is required'], 400);
             }
 
+            $pdo = config::getConnexion();
+            ForumModerationService::ensureCommentSchema($pdo);
+
             $commentaire = new Commentaire();
             $commentaire->setContenu($data['contenu']);
             $commentaire->setIdPublication($data['id_publication']);
             $commentaire->setIdUser($data['id_user']);
             $commentaire->setDatePublication(date('Y-m-d H:i:s'));
-            $commentaire->setStatut($data['statut'] ?? 'pending');
-            $commentaire->setNote(0);
             $commentaire->setSignalements(0);
+            $analysis = ForumModerationService::analyze((string)$data['contenu']);
+            ForumModerationService::applyAnalysisToComment($commentaire, $analysis);
 
             $result = $commentaire->create();
 
@@ -200,7 +204,8 @@ class CommentaireController extends BaseController {
                 return $this->jsonResponse([
                     'success' => true,
                     'message' => 'Comment created successfully',
-                    'id' => $result['id']
+                    'id' => $result['id'],
+                    'moderation' => $analysis
                 ], 201);
             } else {
                 return $this->jsonResponse(['success' => false, 'error' => $result['error'] ?? 'Failed to create comment'], 400);
@@ -222,6 +227,8 @@ class CommentaireController extends BaseController {
             }
 
             $data = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $pdo = config::getConnexion();
+            ForumModerationService::ensureCommentSchema($pdo);
 
             $commentaire = new Commentaire();
             if (!$commentaire->findById($id)) {
@@ -230,6 +237,8 @@ class CommentaireController extends BaseController {
 
             if (!empty($data['contenu'])) {
                 $commentaire->setContenu($data['contenu']);
+                $analysis = ForumModerationService::analyze((string)$data['contenu']);
+                ForumModerationService::applyAnalysisToComment($commentaire, $analysis);
             }
             if (isset($data['statut']) && !empty($data['statut'])) {
                 $commentaire->setStatut($data['statut']);
@@ -245,6 +254,7 @@ class CommentaireController extends BaseController {
             return $this->jsonResponse([
                 'success' => $result['success'],
                 'message' => 'Comment updated successfully',
+                'moderation' => $analysis ?? null,
                 'error' => $result['error'] ?? null
             ]);
         } catch (Exception $e) {
