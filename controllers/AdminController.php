@@ -88,7 +88,8 @@ class AdminController {
         // Liste complète des suivis (avec patient et médecin)
         $stmt = $this->db->query("
             SELECT s.id_suivie, s.date_suivi, s.poids, s.tension, s.etat_general,
-                   s.analyses_a_realiser, s.prochain_rdv, s.date_creation,
+                   s.analyses_a_realiser, s.resultat_analyses, s.regime_alimentaire,
+                   s.activite_physique, s.prochain_rdv, s.date_creation,
                    u_p.nom as patient_nom, u_p.prenom as patient_prenom,
                    u_m.nom as medecin_nom, u_m.prenom as medecin_prenom,
                    me.specialite

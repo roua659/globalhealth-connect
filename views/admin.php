@@ -323,6 +323,11 @@ function exportConsultationPDF(data) {
     const element = document.createElement('div');
     element.style.padding = '40px';
     element.style.fontFamily = "'Outfit', sans-serif";
+    
+    const diagnostic = data.diagnostic ? data.diagnostic.replace(/\n/g, '<br>') : 'Non renseigné';
+    const traitement = data.traitement ? data.traitement.replace(/\n/g, '<br>') : 'Non renseigné';
+    const notes = data.notes ? data.notes.replace(/\n/g, '<br>') : 'Aucune note particulière';
+
     element.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #4f46e5; padding-bottom:20px; margin-bottom:30px;">
             <div><h1 style="color:#4f46e5; margin:0; font-size:24px;">GlobalHealth Connect</h1><p style="margin:5px 0 0; color:#64748b; font-size:12px;">Admin Record Export</p></div>
@@ -332,26 +337,38 @@ function exportConsultationPDF(data) {
             <div><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p><p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p></div>
             <div style="text-align:right;"><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Médecin</p><p style="font-size:16px; font-weight:bold; margin:0;">Dr. ${data.medecin_nom} ${data.medecin_prenom}</p></div>
         </div>
-        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+        <div style="margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
             <p style="font-size:10px; text-transform:uppercase; color:#4f46e5; margin-bottom:10px; font-weight:bold;">Diagnostic</p>
-            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.diagnostic.replace(/\n/g, '<br>')}</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${diagnostic}</p>
         </div>
-        <div style="margin-bottom:30px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+        <div style="margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
             <p style="font-size:10px; text-transform:uppercase; color:#4f46e5; margin-bottom:10px; font-weight:bold;">Traitement Prescrit</p>
-            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.traitement.replace(/\n/g, '<br>')}</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${traitement}</p>
+        </div>
+        <div style="margin-bottom:30px; background:#fffcf0; padding:15px; border-radius:12px; border:1px solid #fde68a;">
+            <p style="font-size:10px; text-transform:uppercase; color:#b45309; margin-bottom:5px; font-weight:bold;">Notes Additionnelles</p>
+            <p style="font-size:13px; color:#78350f; margin:0;">${notes}</p>
         </div>
         <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
             <p>Document administratif exporté depuis GlobalHealth Connect.</p>
             <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
         </div>
     `;
-    html2pdf().set({ margin:10, filename:`Admin_Consultation_${data.patient_nom}.pdf` }).from(element).save();
+    const opt = { margin:10, filename:`Consultation_${data.patient_nom}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+    html2pdf().set(opt).from(element).save();
 }
 
 function exportSuiviePDF(data) {
     const element = document.createElement('div');
     element.style.padding = '40px';
     element.style.fontFamily = "'Outfit', sans-serif";
+
+    const etat = data.etat_general ? data.etat_general.replace(/\n/g, '<br>') : 'Non renseigné';
+    const analyses = data.analyses_a_realiser ? data.analyses_a_realiser.replace(/\n/g, '<br>') : 'Aucune';
+    const resultats = data.resultat_analyses ? data.resultat_analyses.replace(/\n/g, '<br>') : null;
+    const regime = data.regime_alimentaire ? data.regime_alimentaire.replace(/\n/g, '<br>') : null;
+    const activite = data.activite_physique ? data.activite_physique.replace(/\n/g, '<br>') : null;
+
     element.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #10b981; padding-bottom:20px; margin-bottom:30px;">
             <div><h1 style="color:#10b981; margin:0; font-size:24px;">GlobalHealth Connect</h1><p style="margin:5px 0 0; color:#64748b; font-size:12px;">Admin Record Export</p></div>
@@ -361,16 +378,44 @@ function exportSuiviePDF(data) {
             <div><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Patient</p><p style="font-size:16px; font-weight:bold; margin:0;">${data.patient_nom} ${data.patient_prenom}</p></div>
             <div style="text-align:right;"><p style="font-size:10px; text-transform:uppercase; color:#64748b; margin-bottom:5px; font-weight:bold;">Médecin</p><p style="font-size:16px; font-weight:bold; margin:0;">Dr. ${data.medecin_nom} ${data.medecin_prenom}</p></div>
         </div>
-        <div style="margin-bottom:30px; background:#f0fdf4; padding:20px; border-radius:12px; border:1px solid #dcfce7;">
-            <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin-bottom:10px; font-weight:bold;">État Général / Consignes</p>
-            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${data.etat_general.replace(/\n/g, '<br>')}</p>
+        <div style="display:flex; gap:20px; margin-bottom:30px;">
+            <div style="flex:1; background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #dcfce7;">
+                <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin:0 0 5px; font-weight:bold;">Indicateurs Physiques</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">Poids: ${data.poids || '—'} kg | Tension: ${data.tension || '—'}</p>
+            </div>
+            <div style="flex:1; background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #dcfce7;">
+                <p style="font-size:10px; text-transform:uppercase; color:#16a34a; margin:0 0 5px; font-weight:bold;">Prochain RDV</p>
+                <p style="font-size:16px; font-weight:bold; margin:0;">${data.prochain_rdv || 'À définir'}</p>
+            </div>
         </div>
-        <div style="margin-top:60px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
+        <div style="margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#10b981; margin-bottom:10px; font-weight:bold;">État Général / Observations</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">${etat}</p>
+        </div>
+        <div style="margin-bottom:20px; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
+            <p style="font-size:10px; text-transform:uppercase; color:#10b981; margin-bottom:10px; font-weight:bold;">Analyses Médicales</p>
+            <p style="font-size:14px; line-height:1.6; color:#1e293b; margin:0;">Prescrites: ${analyses}</p>
+            ${resultats ? `<p style="margin-top:10px; font-size:13px; color:#4f46e5; font-weight:600;">Résultats: ${resultats}</p>` : ''}
+        </div>
+        ${(regime || activite) ? `
+        <div style="margin-bottom:20px; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="background:#fffcf0; padding:15px; border-radius:12px; border:1px solid #fde68a;">
+                <p style="font-size:10px; text-transform:uppercase; color:#b45309; margin-bottom:5px; font-weight:bold;">Régime</p>
+                <p style="font-size:13px; color:#78350f; margin:0;">${regime || 'Non spécifié'}</p>
+            </div>
+            <div style="background:#fffcf0; padding:15px; border-radius:12px; border:1px solid #fde68a;">
+                <p style="font-size:10px; text-transform:uppercase; color:#b45309; margin-bottom:5px; font-weight:bold;">Activité</p>
+                <p style="font-size:13px; color:#78350f; margin:0;">${activite || 'Non spécifié'}</p>
+            </div>
+        </div>
+        ` : ''}
+        <div style="margin-top:40px; border-top:1px solid #e2e8f0; pt:20px; text-align:center; color:#94a3b8; font-size:10px;">
             <p>Document administratif exporté depuis GlobalHealth Connect.</p>
             <p>Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
         </div>
     `;
-    html2pdf().set({ margin:10, filename:`Admin_Suivi_${data.patient_nom}.pdf` }).from(element).save();
+    const opt = { margin:10, filename:`Suivi_${data.patient_nom}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} };
+    html2pdf().set(opt).from(element).save();
 }
 </script>
 
