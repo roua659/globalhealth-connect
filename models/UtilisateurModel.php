@@ -304,5 +304,59 @@ class UtilisateurModel {
             return ['total' => 0, 'patients' => 0, 'medecins' => 0, 'admins' => 0];
         }
     }
+
+    public function searchManaged($filters = [], $sortField = 'id_user', $sortDir = 'DESC') {
+        try {
+            $allowedSort = [
+                'id_user' => 'u.id_user',
+                'nom' => 'u.nom',
+                'prenom' => 'u.prenom',
+                'email' => 'u.email',
+                'age' => 'u.age',
+                'date_naissance' => 'u.date_naissance',
+                'role' => 'r.type_role',
+            ];
+            $sortColumn = $allowedSort[$sortField] ?? 'u.id_user';
+            $sortDir = strtoupper((string)$sortDir) === 'ASC' ? 'ASC' : 'DESC';
+
+            $conditions = [];
+            $params = [];
+
+            foreach (['nom', 'prenom', 'email', 'sexe', 'cas_social'] as $field) {
+                if (!empty($filters[$field])) {
+                    $conditions[] = "u.{$field} LIKE :{$field}";
+                    $params[":{$field}"] = '%' . trim((string)$filters[$field]) . '%';
+                }
+            }
+
+            if (!empty($filters['role'])) {
+                $conditions[] = "r.type_role = :role";
+                $params[':role'] = trim((string)$filters['role']);
+            }
+
+            $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+            $query = "SELECT u.*,
+                             r.type_role,
+                             p.id_patient,
+                             m.id_medecin,
+                             m.specialite
+                      FROM utilisateur u
+                      LEFT JOIN role r ON u.id_role = r.id_role
+                      LEFT JOIN patient p ON u.id_user = p.id_user
+                      LEFT JOIN medecin m ON u.id_user = m.id_user
+                      {$where}
+                      ORDER BY {$sortColumn} {$sortDir}";
+
+            $stmt = $this->conn->prepare($query);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value);
+            }
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur searchManaged utilisateur: " . $e->getMessage());
+            return [];
+        }
+    }
 }
 ?>

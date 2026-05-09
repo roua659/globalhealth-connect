@@ -60,6 +60,18 @@ switch ($page) {
         } elseif ($action === 'reset-password') {
             $controller->resetPassword();
             exit();
+        } elseif ($action === 'search') {
+            $controller->search();
+            exit();
+        } elseif ($action === 'stats') {
+            $controller->stats();
+            exit();
+        } elseif ($action === 'exportCSV') {
+            $controller->exportCSV($page);
+            exit();
+        } elseif ($action === 'exportPDF') {
+            $controller->exportPDF($page);
+            exit();
         } else {
             require_once 'views/backoffice.php';
         }

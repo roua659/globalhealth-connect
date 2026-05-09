@@ -967,9 +967,17 @@ $errorMessage = Session::getFlash('error');
                 ?>
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2><i class="fas fa-user-cog me-2" style="color: var(--medical-blue);"></i><?php echo $pageTitles[$userPage] ?? 'Utilisateurs'; ?></h2>
-                    <button class="btn btn-medical" onclick="openUserModal()">
-                        <i class="fas fa-plus me-2"></i><?php echo $buttonLabels[$userPage] ?? 'Nouvel utilisateur'; ?>
-                    </button>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a class="btn btn-success" href="?page=<?php echo urlencode($userPage); ?>&action=exportCSV">
+                            <i class="fas fa-file-csv me-2"></i>CSV
+                        </a>
+                        <a class="btn btn-danger" href="?page=<?php echo urlencode($userPage); ?>&action=exportPDF" target="_blank">
+                            <i class="fas fa-file-pdf me-2"></i>PDF
+                        </a>
+                        <button class="btn btn-medical" onclick="openUserModal()">
+                            <i class="fas fa-plus me-2"></i><?php echo $buttonLabels[$userPage] ?? 'Nouvel utilisateur'; ?>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="row mb-4">
@@ -1000,9 +1008,29 @@ $errorMessage = Session::getFlash('error');
                 </div>
 
                 <div class="stat-card">
-                    <div class="row mb-3">
+                    <div class="row mb-3 g-2">
                         <div class="col-md-4">
                             <input type="text" id="searchUsers" class="form-control" placeholder="Rechercher un utilisateur...">
+                        </div>
+                        <div class="col-md-2">
+                            <select id="filterUserRole" class="form-select">
+                                <option value="">Tous roles</option>
+                                <option value="patient">Patients</option>
+                                <option value="medecin">Medecins</option>
+                                <option value="admin">Admins</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select id="filterUserSexe" class="form-select">
+                                <option value="">Tous sexes</option>
+                                <option value="Homme">Homme</option>
+                                <option value="Femme">Femme</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-medical w-100" onclick="resetUserFilters()">
+                                Reinitialiser
+                            </button>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -1021,7 +1049,7 @@ $errorMessage = Session::getFlash('error');
                             <tbody>
                                 <?php if ($userList): ?>
                                     <?php foreach ($userList as $user): ?>
-                                        <tr>
+                                        <tr data-role="<?php echo htmlspecialchars($user['type_role'] ?? ''); ?>" data-sexe="<?php echo htmlspecialchars($user['sexe'] ?? ''); ?>">
                                             <td><?php echo (int)($user['id_user'] ?? 0); ?></td>
                                             <td><?php echo htmlspecialchars(trim(($user['nom'] ?? '') . ' ' . ($user['prenom'] ?? ''))); ?></td>
                                             <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
@@ -1236,12 +1264,28 @@ $errorMessage = Session::getFlash('error');
                     }
                 }
 
-                document.getElementById('searchUsers')?.addEventListener('keyup', function() {
-                    const search = this.value.toLowerCase();
+                function filterUsersTable() {
+                    const search = (document.getElementById('searchUsers')?.value || '').toLowerCase();
+                    const role = document.getElementById('filterUserRole')?.value || '';
+                    const sexe = document.getElementById('filterUserSexe')?.value || '';
                     document.querySelectorAll('#usersTable tbody tr').forEach(row => {
-                        row.style.display = row.textContent.toLowerCase().includes(search) ? '' : 'none';
+                        const matchesText = row.textContent.toLowerCase().includes(search);
+                        const matchesRole = !role || row.dataset.role === role;
+                        const matchesSexe = !sexe || row.dataset.sexe === sexe;
+                        row.style.display = matchesText && matchesRole && matchesSexe ? '' : 'none';
                     });
-                });
+                }
+
+                function resetUserFilters() {
+                    document.getElementById('searchUsers').value = '';
+                    document.getElementById('filterUserRole').value = '';
+                    document.getElementById('filterUserSexe').value = '';
+                    filterUsersTable();
+                }
+
+                document.getElementById('searchUsers')?.addEventListener('keyup', filterUsersTable);
+                document.getElementById('filterUserRole')?.addEventListener('change', filterUsersTable);
+                document.getElementById('filterUserSexe')?.addEventListener('change', filterUsersTable);
                 </script>
                 <?php
                 break;

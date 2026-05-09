@@ -389,5 +389,76 @@ class UtilisateurController {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function search() {
+        $input = $this->getJsonInput();
+        $filters = is_array($input['filters'] ?? null) ? $input['filters'] : [];
+        $allowedFilters = ['nom', 'prenom', 'email', 'sexe', 'role', 'cas_social'];
+        $cleanFilters = array_intersect_key($filters, array_flip($allowedFilters));
+        $sortField = trim((string)($input['sort_field'] ?? 'id_user'));
+        $sortDir = trim((string)($input['sort_dir'] ?? 'DESC'));
+
+        try {
+            $users = array_map([$this, 'normalizeUser'], $this->model->searchManaged($cleanFilters, $sortField, $sortDir));
+            $this->jsonResponse([
+                'success' => true,
+                'data' => $users,
+                'count' => count($users),
+            ]);
+        } catch (Throwable $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function stats() {
+        try {
+            $this->jsonResponse(['success' => true, 'data' => $this->model->getStatistics()]);
+        } catch (Throwable $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function getUsersForPage($page) {
+        if ($page === 'patients') {
+            return $this->model->getPatients();
+        }
+        if ($page === 'medecins') {
+            return $this->model->getMedecins();
+        }
+        return $this->model->readAll();
+    }
+
+    private function formatUsersForExport($users) {
+        return array_map(function ($user) {
+            return [
+                'ID' => (int)($user['id_user'] ?? 0),
+                'Nom' => $user['nom'] ?? '',
+                'Prenom' => $user['prenom'] ?? '',
+                'Email' => $user['email'] ?? '',
+                'Role' => $user['type_role'] ?? '',
+                'Sexe' => $user['sexe'] ?? '',
+                'Age' => $user['age'] ?? '',
+                'Specialite' => $user['specialite'] ?? '',
+                'Cas social' => $user['cas_social'] ?? '',
+                'Date naissance' => $user['date_naissance'] ?? '',
+                'Adresse' => $user['adresse'] ?? '',
+            ];
+        }, $users);
+    }
+
+    public function exportCSV($page = 'users') {
+        $rows = $this->formatUsersForExport($this->getUsersForPage($page));
+        exportToCSV($rows, 'utilisateurs_' . $page);
+    }
+
+    public function exportPDF($page = 'users') {
+        $titles = [
+            'users' => 'Liste des utilisateurs',
+            'patients' => 'Liste des patients',
+            'medecins' => 'Liste des medecins',
+        ];
+        $rows = $this->formatUsersForExport($this->getUsersForPage($page));
+        exportToPDF($rows, $titles[$page] ?? 'Liste des utilisateurs', 'utilisateurs_' . $page . '_' . date('Y-m-d'));
+    }
 }
 ?>
