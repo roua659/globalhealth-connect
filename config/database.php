@@ -1,30 +1,33 @@
 <?php
 class Database {
-    private $host = "localhost";
-    private $db_name = "globalhealth-connect";
-    private $username = "root";
-    private $password = "";
-    public $conn;
+    private static ?PDO $connection = null;
 
-    public function getConnection() {
-        $this->conn = null;
-        try {
-            $this->conn = new PDO("mysql:host=" . $this->host . ";dbname=" . $this->db_name, 
-                                  $this->username, $this->password);
-            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->conn->exec("set names utf8");
-        } catch(PDOException $exception) {
-            echo "Erreur de connexion: " . $exception->getMessage();
+    public static function getConnection(): PDO {
+        if (self::$connection instanceof PDO) {
+            return self::$connection;
         }
-        return $this->conn;
+
+        $host = "localhost";
+        $dbName = "globalhealth-connect";
+        $username = "root";
+        $password = "";
+        $charset = "utf8mb4";
+        $dsn = "mysql:host={$host};dbname={$dbName};charset={$charset}";
+
+        self::$connection = new PDO($dsn, $username, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+
+        return self::$connection;
     }
 }
 
 if (!class_exists('config')) {
     class config {
         public static function getConnexion() {
-            $database = new Database();
-            return $database->getConnection();
+            return Database::getConnection();
         }
     }
 }
