@@ -110,6 +110,17 @@ class MedecinController {
         $stmt->execute([$medecinId]);
         $statsEtat = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Derniers messages reçus du chatbot
+        $stmt = $this->db->prepare("
+            SELECT m.*, u.nom as patient_nom, u.prenom as patient_prenom
+            FROM messages m
+            JOIN utilisateur u ON m.id_user = u.id_user
+            ORDER BY m.date_envoi DESC
+            LIMIT 5
+        ");
+        $stmt->execute();
+        $derniersMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         require_once 'views/medecin/dashboard.php';
     }
 

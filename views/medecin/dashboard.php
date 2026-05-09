@@ -166,6 +166,21 @@
                 </div>
             </div>
             <?php endforeach; ?>
+        <div class="section-card" style="grid-column: 1 / -1; margin-top: 32px;">
+            <h3 class="section-title"><i class="fas fa-comment-medical"></i>Messages des Patients (Chatbot)</h3>
+            <?php if (empty($derniersMessages)): ?>
+                <p style="color:var(--text-muted);">Aucun message reçu pour le moment.</p>
+            <?php else: ?>
+                <?php foreach ($derniersMessages as $msg): ?>
+                <div class="act-item" style="background:#f0fdf4; padding:15px; border-radius:12px; margin-bottom:10px; border:1px solid #bbf7d0;">
+                    <div class="act-date" style="min-width:130px; color:#166534;"><?php echo date('d M Y - H:i', strtotime($msg['date_envoi'])); ?></div>
+                    <div class="act-info">
+                        <h4 style="color:#14532d;"><?php echo htmlspecialchars($msg['patient_nom'] . ' ' . $msg['patient_prenom']); ?></h4>
+                        <p style="color:#166534; font-weight:500; font-style:italic; margin-top:5px;">"<?php echo nl2br(htmlspecialchars($msg['contenu'])); ?>"</p>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </div>
     </div>
 </main>

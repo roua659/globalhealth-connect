@@ -175,5 +175,7 @@
     <?php endif; ?>
 </main>
 
+<?php include 'views/patient/chatbot.php'; ?>
+
 </body>
 </html>

@@ -143,5 +143,31 @@ class PatientController {
 
         require_once 'views/patient/mes_suivis.php';
     }
+    // ── Envoi de message depuis le chatbot ──
+    public function sendMessage() {
+        header('Content-Type: application/json');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $contenu = trim($_POST['message'] ?? '');
+            
+            if (!empty($contenu)) {
+                require_once 'models/MessageModel.php';
+                $messageModel = new MessageModel();
+                // Utilisation du user_id de la session (celui stocké lors de la connexion)
+                $messageModel->id_user = $_SESSION['user_id'] ?? 0;
+                $messageModel->contenu = $contenu;
+
+                if ($messageModel->create()) {
+                    echo json_encode(['status' => 'success', 'message' => 'Votre message a bien été envoyé au médecin.']);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Erreur lors de l\'envoi du message.']);
+                }
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Le message ne peut pas être vide.']);
+            }
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Requête invalide.']);
+        }
+        exit;
+    }
 }
 ?>

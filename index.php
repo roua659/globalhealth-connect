@@ -129,6 +129,7 @@ switch ($controller) {
             case 'index':         $ctrl->index();           break;
             case 'consultations': $ctrl->consultations();   break;
             case 'suivis':        $ctrl->suivis();          break;
+            case 'sendMessage':   $ctrl->sendMessage();     break;
             default:              $ctrl->index();
         }
         break;
