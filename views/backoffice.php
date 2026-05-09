@@ -114,6 +114,58 @@ $errorMessage = Session::getFlash('error');
         border-radius: 8px;
     }
 
+    .advanced-search-card {
+        background: white;
+        border-radius: 20px;
+        padding: 22px;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+
+    .advanced-search-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #1a2b3c;
+        font-weight: 800;
+        margin-bottom: 18px;
+    }
+
+    .advanced-search-card label {
+        color: #53657a;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    .sortable-user-header {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+    }
+
+    .sortable-user-header:hover {
+        color: var(--medical-blue);
+    }
+
+    .sort-indicator {
+        color: #8fa1b5;
+        font-size: 0.75rem;
+        margin-left: 5px;
+    }
+
+    .sort-indicator.active {
+        color: var(--medical-blue);
+    }
+
+    .search-result-count {
+        color: #53657a;
+        font-size: 0.9rem;
+        font-weight: 700;
+    }
+
     .comments-card {
         border-radius: 18px;
         overflow: hidden;
@@ -1007,46 +1059,102 @@ $errorMessage = Session::getFlash('error');
                     </div>
                 </div>
 
+                <div class="advanced-search-card">
+                    <div class="advanced-search-title">
+                        <i class="fas fa-search" style="color: var(--medical-blue);"></i>
+                        Recherche avancée &amp; Tri dynamique
+                    </div>
+                    <form id="advancedUserSearchForm" onsubmit="applyUserSearchAndSort(); return false;">
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label for="filterNom">Nom</label>
+                                <input type="text" id="filterNom" class="form-control" placeholder="Ex : Dupont">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="filterPrenom">Prénom</label>
+                                <input type="text" id="filterPrenom" class="form-control" placeholder="Ex : Marie">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="filterEmail">Email</label>
+                                <input type="text" id="filterEmail" class="form-control" placeholder="Ex : marie@email.com">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="filterSexe">Sexe</label>
+                                <select id="filterSexe" class="form-select">
+                                    <option value="">Tous</option>
+                                    <option value="Homme">Homme</option>
+                                    <option value="Femme">Femme</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="filterRole">Rôle</label>
+                                <select id="filterRole" class="form-select">
+                                    <option value="">Tous</option>
+                                    <option value="patient">Patient</option>
+                                    <option value="medecin">Médecin</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <label for="filterCasSocial">Cas social</label>
+                                <input type="text" id="filterCasSocial" class="form-control" placeholder="CNSS">
+                            </div>
+                            <div class="col-md-2">
+                                <label for="sortField">Trier par</label>
+                                <select id="sortField" class="form-select">
+                                    <option value="id_user">ID</option>
+                                    <option value="nom">Nom</option>
+                                    <option value="prenom">Prénom</option>
+                                    <option value="email">Email</option>
+                                    <option value="age">Âge</option>
+                                    <option value="poids">Poids</option>
+                                    <option value="taille">Taille</option>
+                                    <option value="date_naissance">Date naissance</option>
+                                    <option value="role">Rôle</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="sortDir">Ordre</label>
+                                <select id="sortDir" class="form-select">
+                                    <option value="DESC">↓ Décroissant</option>
+                                    <option value="ASC">↑ Croissant</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end gap-2 flex-wrap">
+                                <button type="submit" class="btn btn-medical">
+                                    <i class="fas fa-search me-2"></i>Rechercher
+                                </button>
+                                <button type="button" class="btn btn-outline-medical" onclick="resetUserSearchAndSort()">
+                                    <i class="fas fa-times me-2"></i>Réinitialiser
+                                </button>
+                                <span id="searchResultCount" class="search-result-count"></span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
                 <div class="stat-card">
-                    <div class="row mb-3 g-2">
-                        <div class="col-md-4">
-                            <input type="text" id="searchUsers" class="form-control" placeholder="Rechercher un utilisateur...">
-                        </div>
-                        <div class="col-md-2">
-                            <select id="filterUserRole" class="form-select">
-                                <option value="">Tous roles</option>
-                                <option value="patient">Patients</option>
-                                <option value="medecin">Medecins</option>
-                                <option value="admin">Admins</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <select id="filterUserSexe" class="form-select">
-                                <option value="">Tous sexes</option>
-                                <option value="Homme">Homme</option>
-                                <option value="Femme">Femme</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button type="button" class="btn btn-outline-medical w-100" onclick="resetUserFilters()">
-                                Reinitialiser
-                            </button>
-                        </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2" style="color: var(--medical-blue);"></i>
+                            Liste des utilisateurs <span id="tableCount" class="text-muted fs-6">(<?php echo count($userList); ?>)</span>
+                        </h5>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover" id="usersTable">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Nom complet</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Specialite</th>
+                                    <th class="sortable-user-header" data-sort="id_user">ID <span class="sort-indicator">⇅</span></th>
+                                    <th class="sortable-user-header" data-sort="nom">Nom complet <span class="sort-indicator">⇅</span></th>
+                                    <th class="sortable-user-header" data-sort="email">Email <span class="sort-indicator">⇅</span></th>
+                                    <th class="sortable-user-header" data-sort="role">Rôle <span class="sort-indicator">⇅</span></th>
+                                    <th>Spécialité</th>
+                                    <th>Sexe</th>
                                     <th>Cas social</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="usersTableBody">
                                 <?php if ($userList): ?>
                                     <?php foreach ($userList as $user): ?>
                                         <tr data-role="<?php echo htmlspecialchars($user['type_role'] ?? ''); ?>" data-sexe="<?php echo htmlspecialchars($user['sexe'] ?? ''); ?>">
@@ -1055,6 +1163,7 @@ $errorMessage = Session::getFlash('error');
                                             <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
                                             <td><?php echo htmlspecialchars($user['type_role'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($user['specialite'] ?? '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($user['sexe'] ?? '-'); ?></td>
                                             <td><?php echo htmlspecialchars($user['cas_social'] ?? '-'); ?></td>
                                             <td class="action-buttons">
                                                 <button class="btn btn-sm btn-warning" onclick='openUserModal(<?php echo json_encode($user, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>
@@ -1067,7 +1176,7 @@ $errorMessage = Session::getFlash('error');
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="7" class="text-center">Aucun utilisateur trouve</td></tr>
+                                    <tr><td colspan="8" class="text-center">Aucun utilisateur trouvé</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -1158,6 +1267,162 @@ $errorMessage = Session::getFlash('error');
 
                 <script>
                 const currentUserManagementPage = <?php echo json_encode($userPage); ?>;
+                let activeUserFilters = {};
+                let activeUserSortField = 'id_user';
+                let activeUserSortDir = 'DESC';
+                let managedUsers = <?php echo json_encode(array_values($userList), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+                function escapeHtml(value) {
+                    return String(value ?? '').replace(/[&<>"']/g, char => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char]));
+                }
+
+                function normalizeManagedUser(user) {
+                    return {
+                        ...user,
+                        type_role: user.type_role || user.role || 'patient'
+                    };
+                }
+
+                function userFullName(user) {
+                    return `${user.nom || ''} ${user.prenom || ''}`.trim() || '-';
+                }
+
+                function roleLabel(role) {
+                    return { patient: 'Patient', medecin: 'Médecin', admin: 'Admin' }[role] || role || '-';
+                }
+
+                function renderUsersTable(users) {
+                    managedUsers = (users || []).map(normalizeManagedUser);
+                    const tbody = document.getElementById('usersTableBody');
+                    if (!tbody) return;
+
+                    if (!managedUsers.length) {
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center">Aucun résultat correspondant aux critères</td></tr>';
+                    } else {
+                        tbody.innerHTML = managedUsers.map(user => {
+                            const id = Number(user.id_user || user.id || 0);
+                            const role = user.type_role || user.role || '';
+                            return `<tr data-role="${escapeHtml(role)}" data-sexe="${escapeHtml(user.sexe || '')}">
+                                <td>${id}</td>
+                                <td>${escapeHtml(userFullName(user))}</td>
+                                <td>${escapeHtml(user.email || '')}</td>
+                                <td>${escapeHtml(roleLabel(role))}</td>
+                                <td>${escapeHtml(user.specialite || '-')}</td>
+                                <td>${escapeHtml(user.sexe || '-')}</td>
+                                <td>${escapeHtml(user.cas_social || '-')}</td>
+                                <td class="action-buttons">
+                                    <button class="btn btn-sm btn-warning" onclick="editUserFromCache(${id})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteUser(${id})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>`;
+                        }).join('');
+                    }
+
+                    document.getElementById('tableCount').textContent = `(${managedUsers.length})`;
+                    document.getElementById('searchResultCount').textContent = `${managedUsers.length} résultat(s)`;
+                    updateUserSortIndicators();
+                }
+
+                function editUserFromCache(id) {
+                    const user = managedUsers.find(item => Number(item.id_user || item.id || 0) === Number(id));
+                    if (user) openUserModal(normalizeManagedUser(user));
+                }
+
+                function collectUserSearchFilters() {
+                    const filters = {};
+                    const fields = {
+                        nom: 'filterNom',
+                        prenom: 'filterPrenom',
+                        email: 'filterEmail',
+                        sexe: 'filterSexe',
+                        role: 'filterRole',
+                        cas_social: 'filterCasSocial'
+                    };
+                    Object.entries(fields).forEach(([key, id]) => {
+                        const value = document.getElementById(id)?.value.trim();
+                        if (value) filters[key] = value;
+                    });
+                    if (currentUserManagementPage === 'patients') {
+                        filters.role = 'patient';
+                    } else if (currentUserManagementPage === 'medecins') {
+                        filters.role = 'medecin';
+                    }
+                    return filters;
+                }
+
+                async function fetchUserSearchResults(filters, sortField, sortDir) {
+                    const response = await fetch('index.php?page=users&action=search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            filters,
+                            sort_field: sortField,
+                            sort_dir: sortDir
+                        })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Erreur recherche utilisateurs');
+                    }
+                    return result.data || [];
+                }
+
+                async function applyUserSearchAndSort() {
+                    activeUserFilters = collectUserSearchFilters();
+                    activeUserSortField = document.getElementById('sortField')?.value || 'id_user';
+                    activeUserSortDir = document.getElementById('sortDir')?.value || 'DESC';
+
+                    try {
+                        const users = await fetchUserSearchResults(activeUserFilters, activeUserSortField, activeUserSortDir);
+                        renderUsersTable(users);
+                    } catch (error) {
+                        alert(error.message);
+                    }
+                }
+
+                async function quickUserSort(field) {
+                    activeUserSortDir = activeUserSortField === field && activeUserSortDir === 'ASC' ? 'DESC' : 'ASC';
+                    activeUserSortField = field;
+                    document.getElementById('sortField').value = field;
+                    document.getElementById('sortDir').value = activeUserSortDir;
+                    try {
+                        const users = await fetchUserSearchResults(activeUserFilters, activeUserSortField, activeUserSortDir);
+                        renderUsersTable(users);
+                    } catch (error) {
+                        alert(error.message);
+                    }
+                }
+
+                function updateUserSortIndicators() {
+                    document.querySelectorAll('.sortable-user-header').forEach(th => {
+                        const field = th.dataset.sort;
+                        const indicator = th.querySelector('.sort-indicator');
+                        if (!indicator) return;
+                        const active = field === activeUserSortField;
+                        indicator.textContent = active ? (activeUserSortDir === 'ASC' ? '▲' : '▼') : '⇅';
+                        indicator.classList.toggle('active', active);
+                    });
+                }
+
+                function resetUserSearchAndSort() {
+                    document.getElementById('advancedUserSearchForm')?.reset();
+                    activeUserFilters = {};
+                    activeUserSortField = 'id_user';
+                    activeUserSortDir = 'DESC';
+                    document.getElementById('sortField').value = activeUserSortField;
+                    document.getElementById('sortDir').value = activeUserSortDir;
+                    applyUserSearchAndSort();
+                }
 
                 function applyUserPageDefaults(isEditMode = false) {
                     const roleField = document.getElementById('userRole');
@@ -1264,28 +1529,10 @@ $errorMessage = Session::getFlash('error');
                     }
                 }
 
-                function filterUsersTable() {
-                    const search = (document.getElementById('searchUsers')?.value || '').toLowerCase();
-                    const role = document.getElementById('filterUserRole')?.value || '';
-                    const sexe = document.getElementById('filterUserSexe')?.value || '';
-                    document.querySelectorAll('#usersTable tbody tr').forEach(row => {
-                        const matchesText = row.textContent.toLowerCase().includes(search);
-                        const matchesRole = !role || row.dataset.role === role;
-                        const matchesSexe = !sexe || row.dataset.sexe === sexe;
-                        row.style.display = matchesText && matchesRole && matchesSexe ? '' : 'none';
-                    });
-                }
-
-                function resetUserFilters() {
-                    document.getElementById('searchUsers').value = '';
-                    document.getElementById('filterUserRole').value = '';
-                    document.getElementById('filterUserSexe').value = '';
-                    filterUsersTable();
-                }
-
-                document.getElementById('searchUsers')?.addEventListener('keyup', filterUsersTable);
-                document.getElementById('filterUserRole')?.addEventListener('change', filterUsersTable);
-                document.getElementById('filterUserSexe')?.addEventListener('change', filterUsersTable);
+                document.querySelectorAll('.sortable-user-header').forEach(th => {
+                    th.addEventListener('click', () => quickUserSort(th.dataset.sort));
+                });
+                updateUserSortIndicators();
                 </script>
                 <?php
                 break;

@@ -313,6 +313,8 @@ class UtilisateurModel {
                 'prenom' => 'u.prenom',
                 'email' => 'u.email',
                 'age' => 'u.age',
+                'poids' => 'u.poids',
+                'taille' => 'u.taille',
                 'date_naissance' => 'u.date_naissance',
                 'role' => 'r.type_role',
             ];

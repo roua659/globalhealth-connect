@@ -589,6 +589,23 @@ try {
             border-radius: 28px;
             border: none;
         }
+
+        .profile-avatar-preview {
+            width: 118px;
+            height: 118px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--medical-blue), var(--medical-green));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            background-size: cover;
+            background-position: center;
+            border: 4px solid rgba(43, 123, 228, 0.18);
+            box-shadow: 0 10px 24px rgba(43, 123, 228, 0.18);
+        }
         
         .empty-state {
             text-align: center;
@@ -786,7 +803,7 @@ try {
             </ul>
             <div class="user-menu ms-3" id="userMenu" style="display: none;">
                 <div class="dropdown">
-                    <div class="user-avatar" id="navUserAvatar" data-bs-toggle="dropdown" style="width:42px;height:42px;background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+                    <div class="user-avatar" id="navUserAvatar" data-bs-toggle="dropdown" style="width:42px;height:42px;background:linear-gradient(135deg,var(--medical-blue),var(--medical-green));background-size:cover;background-position:center;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:white;">
                         <i class="fas fa-user"></i>
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -804,6 +821,11 @@ try {
                 <button class="btn btn-outline-medical me-2" onclick="showSignInModal()">Se connecter</button>
                 <button class="btn btn-medical" onclick="showSignUpModal()">S'inscrire</button>
             </div>
+            <button id="btnTranslate" class="btn btn-sm ms-2"
+                    onclick="toggleArabic()"
+                    style="background:#1a5276;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-globe"></i> <span id="btnTranslateLabel">عربي</span>
+            </button>
         </div>
     </div>
 </nav>
@@ -1452,7 +1474,7 @@ try {
 </div>
 
 <div class="modal fade" id="signupModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content auth-modal">
             <div class="modal-header border-0">
                 <h5 class="modal-title"><i class="fas fa-user-plus me-2" style="color: var(--medical-blue);"></i>Inscription</h5>
@@ -1460,28 +1482,83 @@ try {
             </div>
             <div class="modal-body">
                 <form id="signupForm">
-                    <div class="mb-3">
-                        <label>Nom complet</label>
-                        <input type="text" class="form-control form-control-medical" id="signupName" >
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label>Nom <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-medical" id="signupNom" placeholder="Ex : Dupont" autocomplete="family-name" oninput="this.value=this.value.replace(/[0-9]/g,'')" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Prénom <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-medical" id="signupPrenom" placeholder="Ex : Marie" autocomplete="given-name" oninput="this.value=this.value.replace(/[0-9]/g,'')" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control form-control-medical" id="signupEmail" placeholder="votre@email.com" autocomplete="email" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Rôle <span class="text-danger">*</span></label>
+                            <select class="form-select form-control-medical" id="signupRole" onchange="toggleSignupSpecialty()" required>
+                                <option value="patient">Patient</option>
+                                <option value="medecin">Médecin</option>
+                            </select>
+                        </div>
+                        <div class="col-12" id="signupSpecialtyField" style="display:none;">
+                            <label>Spécialité <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-medical" id="signupSpecialite" placeholder="Ex : Cardiologue">
+                        </div>
+                        <div class="col-md-6">
+                            <label>Sexe <span class="text-danger">*</span></label>
+                            <select class="form-select form-control-medical" id="signupSexe" required>
+                                <option value="">Sélectionner</option>
+                                <option value="Homme">Homme</option>
+                                <option value="Femme">Femme</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Date de naissance <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-medical" id="signupDateNaissance" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label>Email</label>
-                        <input type="email" class="form-control form-control-medical" id="signupEmail" >
+                    <div class="row g-3 mt-0" id="signupPatientFields">
+                        <div class="col-md-6">
+                            <label>Poids (kg) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.1" min="1" class="form-control form-control-medical" id="signupPoids" placeholder="Ex : 70">
+                        </div>
+                        <div class="col-md-6">
+                            <label>Taille (m) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0.5" max="2.5" class="form-control form-control-medical" id="signupTaille" placeholder="Ex : 1.75">
+                        </div>
+                        <div class="col-12">
+                            <label>Cas social</label>
+                            <input type="text" class="form-control form-control-medical" id="signupCasSocial" placeholder="Ex : CNSS, RAMED...">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label>Téléphone</label>
-                        <input type="tel" class="form-control form-control-medical" id="signupPhone">
+                    <div class="mt-3">
+                        <label>Adresse <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-medical" id="signupAdresse" placeholder="Ex : 12 rue de la Paix, Casablanca" required>
                     </div>
-                    <div class="mb-3">
-                        <label>Mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupPassword" >
-                        <div id="passwordStrength" class="mt-1 small"></div>
+                    <div class="row g-3 mt-0">
+                        <div class="col-md-6">
+                            <label>Mot de passe <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control form-control-medical" id="signupPassword" placeholder="Min. 6 caractères" autocomplete="new-password" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="toggleSignupPassword('signupPassword', this)" aria-label="Afficher le mot de passe">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div id="passwordStrength" class="mt-1 small"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Confirmer le mot de passe <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control form-control-medical" id="signupConfirmPassword" placeholder="Répétez le mot de passe" autocomplete="new-password" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="toggleSignupPassword('signupConfirmPassword', this)" aria-label="Afficher le mot de passe">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label>Confirmer le mot de passe</label>
-                        <input type="password" class="form-control form-control-medical" id="signupConfirmPassword" >
-                    </div>
-                    <button type="submit" class="btn btn-medical w-100">S'inscrire</button>
+                    <button type="submit" class="btn btn-medical w-100 mt-4">S'inscrire</button>
                     <div class="text-center mt-3">
                         <small>Déjà inscrit ? <a href="#" onclick="switchToSignIn()">Se connecter</a></small>
                     </div>
@@ -1526,10 +1603,19 @@ try {
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content auth-modal">
             <div class="modal-header border-0">
-                <h5 class="modal-title"><i class="fas fa-user me-2" style="color: var(--medical-blue);"></i>Mon profil</h5>
+                <h5 class="modal-title"><i class="fas fa-user-circle me-2" style="color: var(--medical-blue);"></i>Mon profil</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div id="profileAvatarPreview" class="profile-avatar-preview mx-auto mb-3">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <button type="button" class="btn btn-outline-medical btn-sm" onclick="document.getElementById('profilePhotoInput').click()">
+                        Modifier la photo
+                    </button>
+                    <input type="file" id="profilePhotoInput" accept="image/*" style="display:none" onchange="handleProfilePhotoUpload(this)">
+                </div>
                 <div class="mb-3">
                     <label>Nom</label>
                     <input type="text" class="form-control form-control-medical" id="profileName" readonly>
@@ -1541,6 +1627,24 @@ try {
                 <div class="mb-3">
                     <label>Role</label>
                     <input type="text" class="form-control form-control-medical" id="profileRole" readonly>
+                </div>
+                <div class="mb-3" id="profileSpecialiteRow" style="display:none;">
+                    <label>Spécialité</label>
+                    <input type="text" class="form-control form-control-medical" id="profileSpecialite" readonly>
+                </div>
+                <div class="row gx-3">
+                    <div class="col-md-6 mb-3">
+                        <label>Sexe</label>
+                        <input type="text" class="form-control form-control-medical" id="profileSexe" readonly>
+                    </div>
+                    <div class="col-md-6 mb-3" id="profilePoidsRow">
+                        <label>Poids (kg)</label>
+                        <input type="text" class="form-control form-control-medical" id="profilePoids" readonly>
+                    </div>
+                </div>
+                <div class="mb-3" id="profileTailleRow">
+                    <label>Taille (m)</label>
+                    <input type="text" class="form-control form-control-medical" id="profileTaille" readonly>
                 </div>
                 <div class="mb-3">
                     <label>Date de naissance</label>
@@ -1717,7 +1821,13 @@ function renderUserAvatar() {
     const avatar = document.getElementById('navUserAvatar');
     if (!avatar) return;
 
-    if (currentPatient && currentPatient.name) {
+    if (currentPatient?.avatar) {
+        avatar.style.backgroundImage = `url(${currentPatient.avatar})`;
+        avatar.style.backgroundColor = 'transparent';
+        avatar.innerHTML = '';
+    } else if (currentPatient && currentPatient.name) {
+        avatar.style.backgroundImage = '';
+        avatar.style.background = 'linear-gradient(135deg,var(--medical-blue),var(--medical-green))';
         const initials = currentPatient.name
             .split(/\s+/)
             .filter(Boolean)
@@ -1727,8 +1837,155 @@ function renderUserAvatar() {
             .toUpperCase();
         avatar.innerHTML = `<span style="font-weight:700;">${escapeHtml(initials)}</span>`;
     } else {
+        avatar.style.backgroundImage = '';
+        avatar.style.background = 'linear-gradient(135deg,var(--medical-blue),var(--medical-green))';
         avatar.innerHTML = '<i class="fas fa-user"></i>';
     }
+}
+
+function updateProfileAvatarPreview() {
+    const preview = document.getElementById('profileAvatarPreview');
+    if (!preview) return;
+
+    if (currentPatient?.avatar) {
+        preview.style.backgroundImage = `url(${currentPatient.avatar})`;
+        preview.innerHTML = '';
+        return;
+    }
+
+    preview.style.backgroundImage = '';
+    if (currentPatient?.name) {
+        const initials = currentPatient.name
+            .split(/\s+/)
+            .filter(Boolean)
+            .map(part => part[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+        preview.innerHTML = escapeHtml(initials);
+    } else {
+        preview.innerHTML = '<i class="fas fa-user"></i>';
+    }
+}
+
+function handleProfilePhotoUpload(input) {
+    if (!input.files || !input.files[0] || !currentPatient) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        currentPatient.avatar = event.target.result;
+        localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
+        renderUserAvatar();
+        updateProfileAvatarPreview();
+        showFrontNotification('Photo de profil mise à jour.');
+    };
+    reader.readAsDataURL(input.files[0]);
+}
+
+let isArabic = false;
+
+const FRONT_TRANSLATIONS = {
+    'Accueil': 'الرئيسية',
+    'Consultation': 'الاستشارة',
+    'Calendrier': 'التقويم',
+    'Téléconsultation': 'الاستشارة عن بعد',
+    'Suivi': 'المتابعة',
+    'Médecins': 'الأطباء',
+    'Forum': 'المنتدى',
+    'Dossier': 'الملف',
+    'Se connecter': 'تسجيل الدخول',
+    "S'inscrire": 'إنشاء حساب',
+    'Mon profil': 'ملفي الشخصي',
+    'Mes RDV': 'مواعيدي',
+    'Mon dossier médical': 'ملفي الطبي',
+    'RDV de mes patients': 'مواعيد مرضاي',
+    'BackOffice': 'الإدارة',
+    'Déconnexion': 'تسجيل الخروج',
+    'Prenez soin de votre santé autrement': 'اعتن بصحتك بطريقة مختلفة',
+    'Consultez des médecins qualifiés en ligne ou en présentiel. Partagez vos expériences et notez vos consultations.': 'استشر أطباء مؤهلين عبر الإنترنت أو حضوريا. شارك تجاربك وقيّم استشاراتك.',
+    'Prendre rendez-vous': 'حجز موعد',
+    'Soins 100% sécurisés': 'رعاية آمنة 100%',
+    'Téléconsultation 24/7': 'استشارة عن بعد 24/7',
+    'Consultation en visio avec nos experts': 'استشارة بالفيديو مع خبرائنا',
+    'Connexion': 'تسجيل الدخول',
+    'Inscription': 'إنشاء حساب',
+    'Email': 'البريد الإلكتروني',
+    'Mot de passe': 'كلمة المرور',
+    'Mot de passe oublié ?': 'نسيت كلمة المرور؟',
+    'Pas encore de compte ?': 'ليس لديك حساب؟',
+    'Déjà inscrit ?': 'لديك حساب بالفعل؟',
+    'Nom': 'الاسم',
+    'Prénom': 'اللقب',
+    'Rôle': 'الدور',
+    'Role': 'الدور',
+    'Patient': 'مريض',
+    'Médecin': 'طبيب',
+    'Spécialité': 'التخصص',
+    'Sexe': 'الجنس',
+    'Sélectionner': 'اختر',
+    'Homme': 'ذكر',
+    'Femme': 'أنثى',
+    'Date de naissance': 'تاريخ الميلاد',
+    'Poids (kg)': 'الوزن (كغ)',
+    'Taille (m)': 'الطول (م)',
+    'Cas social': 'الوضع الاجتماعي',
+    'Adresse': 'العنوان',
+    'Confirmer le mot de passe': 'تأكيد كلمة المرور',
+    'Modifier la photo': 'تغيير الصورة',
+    'Nom complet': 'الاسم الكامل',
+    'Fermer': 'إغلاق',
+    'Reinitialiser le mot de passe': 'إعادة تعيين كلمة المرور',
+    'Nouveau mot de passe': 'كلمة المرور الجديدة',
+    'Reinitialiser': 'إعادة تعيين',
+    'Rejoindre': 'انضمام',
+    'Actualiser': 'تحديث',
+    'Ajouter': 'إضافة',
+    'Modifier': 'تعديل',
+    'Supprimer': 'حذف'
+};
+
+function translateNode(node, toArabic) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.trim();
+        if (!text) return;
+        if (toArabic && FRONT_TRANSLATIONS[text]) {
+            node._originalText = node._originalText || node.textContent;
+            node.textContent = node.textContent.replace(text, FRONT_TRANSLATIONS[text]);
+        } else if (!toArabic && node._originalText) {
+            node.textContent = node._originalText;
+            delete node._originalText;
+        }
+        return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = node.tagName?.toLowerCase();
+    if (['script', 'style', 'textarea'].includes(tag)) return;
+
+    if (node.placeholder) {
+        if (toArabic) {
+            node._originalPlaceholder = node._originalPlaceholder || node.placeholder;
+            node.placeholder = FRONT_TRANSLATIONS[node.placeholder] || node.placeholder;
+        } else if (node._originalPlaceholder) {
+            node.placeholder = node._originalPlaceholder;
+            delete node._originalPlaceholder;
+        }
+    }
+
+    node.childNodes.forEach(child => translateNode(child, toArabic));
+}
+
+function toggleArabic() {
+    isArabic = !isArabic;
+    document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
+    document.documentElement.lang = isArabic ? 'ar' : 'fr';
+    document.body.style.fontFamily = isArabic
+        ? "'Noto Sans Arabic', 'Segoe UI', sans-serif"
+        : "'Inter', sans-serif";
+
+    translateNode(document.body, isArabic);
+    const label = document.getElementById('btnTranslateLabel');
+    if (label) label.textContent = isArabic ? 'Français' : 'عربي';
 }
 
 function syncCurrentPatientToForms() {
@@ -2216,6 +2473,39 @@ function switchToSignInFromForgot() {
     showSignInModal();
 }
 
+function toggleSignupSpecialty() {
+    const isMedecin = document.getElementById('signupRole')?.value === 'medecin';
+    const specialty = document.getElementById('signupSpecialtyField');
+    const patientFields = document.getElementById('signupPatientFields');
+    if (specialty) specialty.style.display = isMedecin ? '' : 'none';
+    if (patientFields) patientFields.style.display = isMedecin ? 'none' : 'flex';
+}
+
+function calculateSignupAge(dateNaissance) {
+    if (!dateNaissance) return 0;
+    const birth = new Date(dateNaissance);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+    }
+    return Math.max(age, 0);
+}
+
+function toggleSignupPassword(inputId, button) {
+    const input = document.getElementById(inputId);
+    const icon = button?.querySelector('i');
+    if (!input) return;
+
+    const visible = input.type === 'text';
+    input.type = visible ? 'password' : 'text';
+    if (icon) {
+        icon.classList.toggle('fa-eye', visible);
+        icon.classList.toggle('fa-eye-slash', !visible);
+    }
+}
+
 function showProfile() {
     if (!currentPatient) {
         showFrontNotification('Veuillez vous connecter.', true);
@@ -2224,9 +2514,27 @@ function showProfile() {
 
     document.getElementById('profileName').value = currentPatient.name || '';
     document.getElementById('profileEmail').value = currentPatient.email || '';
-    document.getElementById('profileRole').value = currentPatient.role || 'patient';
+    const role = currentPatient.role || 'patient';
+    document.getElementById('profileRole').value = role === 'medecin' ? 'Médecin' : (role === 'admin' ? 'Admin' : 'Patient');
+    document.getElementById('profileSexe').value = currentPatient.sexe || '';
+    document.getElementById('profilePoids').value = currentPatient.poids ? `${currentPatient.poids}` : '';
+    document.getElementById('profileTaille').value = currentPatient.taille ? `${currentPatient.taille}` : '';
     document.getElementById('profileBirthDate').value = currentPatient.date_naissance || '';
     document.getElementById('profileAddress').value = currentPatient.adresse || '';
+
+    const specialiteRow = document.getElementById('profileSpecialiteRow');
+    const poidsRow = document.getElementById('profilePoidsRow');
+    const tailleRow = document.getElementById('profileTailleRow');
+    const isMedecin = role === 'medecin';
+
+    if (specialiteRow) specialiteRow.style.display = isMedecin ? '' : 'none';
+    if (poidsRow) poidsRow.style.display = isMedecin ? 'none' : '';
+    if (tailleRow) tailleRow.style.display = isMedecin ? 'none' : '';
+    if (isMedecin) {
+        document.getElementById('profileSpecialite').value = currentPatient.specialite || 'Non renseigné';
+    }
+
+    updateProfileAvatarPreview();
     new bootstrap.Modal(document.getElementById('profileModal')).show();
 }
 
@@ -2240,13 +2548,37 @@ function logoutPatient() {
 document.getElementById('signupForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    const fullName = document.getElementById('signupName').value.trim();
+    const nom = document.getElementById('signupNom').value.trim();
+    const prenom = document.getElementById('signupPrenom').value.trim();
     const email = document.getElementById('signupEmail').value.trim();
+    const role = document.getElementById('signupRole').value;
+    const sexe = document.getElementById('signupSexe').value;
+    const dateNaissance = document.getElementById('signupDateNaissance').value;
+    const poids = role === 'medecin' ? 0 : Number(document.getElementById('signupPoids').value);
+    const taille = role === 'medecin' ? 0 : Number(document.getElementById('signupTaille').value);
+    const casSocial = role === 'medecin' ? '' : document.getElementById('signupCasSocial').value.trim();
+    const adresse = document.getElementById('signupAdresse').value.trim();
+    const specialite = role === 'medecin' ? document.getElementById('signupSpecialite').value.trim() : '';
     const password = document.getElementById('signupPassword').value;
     const confirmPassword = document.getElementById('signupConfirmPassword').value;
 
-    if (!fullName || !email || !password || !confirmPassword) {
+    if (!nom || !prenom || !email || !sexe || !dateNaissance || !adresse || !password || !confirmPassword) {
         showFrontNotification('Veuillez remplir tous les champs obligatoires.', true);
+        return;
+    }
+
+    if (role === 'patient' && (!poids || !taille)) {
+        showFrontNotification('Le poids et la taille sont obligatoires pour un patient.', true);
+        return;
+    }
+
+    if (role === 'medecin' && !specialite) {
+        showFrontNotification('La specialite est obligatoire pour un medecin.', true);
+        return;
+    }
+
+    if (password.length < 6) {
+        showFrontNotification('Le mot de passe doit contenir au moins 6 caracteres.', true);
         return;
     }
 
@@ -2255,16 +2587,21 @@ document.getElementById('signupForm')?.addEventListener('submit', async function
         return;
     }
 
-    const nameParts = fullName.split(/\s+/).filter(Boolean);
-    const prenom = nameParts.shift() || 'Patient';
-    const nom = nameParts.join(' ') || prenom;
-
     try {
-        const userData = await usersApiRequest('register-patient', 'POST', {
+        const userData = await usersApiRequest('create', 'POST', {
             nom,
             prenom,
+            age: calculateSignupAge(dateNaissance),
+            sexe,
+            poids,
+            taille,
             email,
-            mot_de_passe: password
+            mot_de_passe: password,
+            cas_social: casSocial,
+            date_naissance: dateNaissance,
+            adresse,
+            role,
+            specialite
         });
 
         currentPatient = userData;
