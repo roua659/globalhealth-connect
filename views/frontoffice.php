@@ -1440,6 +1440,9 @@ try {
                     </div>
                     <button type="submit" class="btn btn-medical w-100">Se connecter</button>
                     <div class="text-center mt-3">
+                        <small><a href="#" onclick="switchToForgotPassword()">Mot de passe oublie ?</a></small>
+                    </div>
+                    <div class="text-center mt-3">
                         <small>Pas encore de compte ? <a href="#" onclick="switchToSignUp()">S'inscrire</a></small>
                     </div>
                 </form>
@@ -1481,6 +1484,37 @@ try {
                     <button type="submit" class="btn btn-medical w-100">S'inscrire</button>
                     <div class="text-center mt-3">
                         <small>Déjà inscrit ? <a href="#" onclick="switchToSignIn()">Se connecter</a></small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="forgotPasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content auth-modal">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="fas fa-key me-2" style="color: var(--medical-blue);"></i>Reinitialiser le mot de passe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="forgotPasswordForm">
+                    <div class="mb-3">
+                        <label>Email</label>
+                        <input type="email" class="form-control form-control-medical" id="forgotEmail" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Nouveau mot de passe</label>
+                        <input type="password" class="form-control form-control-medical" id="forgotPassword" minlength="6" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Confirmer le mot de passe</label>
+                        <input type="password" class="form-control form-control-medical" id="forgotConfirmPassword" minlength="6" required>
+                    </div>
+                    <button type="submit" class="btn btn-medical w-100">Reinitialiser</button>
+                    <div class="text-center mt-3">
+                        <small>Retour a la connexion ? <a href="#" onclick="switchToSignInFromForgot()">Se connecter</a></small>
                     </div>
                 </form>
             </div>
@@ -2172,6 +2206,16 @@ function switchToSignIn() {
     showSignInModal();
 }
 
+function switchToForgotPassword() {
+    bootstrap.Modal.getInstance(document.getElementById('signinModal'))?.hide();
+    new bootstrap.Modal(document.getElementById('forgotPasswordModal')).show();
+}
+
+function switchToSignInFromForgot() {
+    bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal'))?.hide();
+    showSignInModal();
+}
+
 function showProfile() {
     if (!currentPatient) {
         showFrontNotification('Veuillez vous connecter.', true);
@@ -2257,6 +2301,43 @@ document.getElementById('signinForm')?.addEventListener('submit', async function
         document.getElementById('signinForm').reset();
         updateUIForConnectedPatient();
         showFrontNotification(`Bon retour ${userData.name} !`);
+    } catch (error) {
+        showFrontNotification(error.message, true);
+    }
+});
+
+document.getElementById('forgotPasswordForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('forgotEmail').value.trim();
+    const password = document.getElementById('forgotPassword').value;
+    const confirmPassword = document.getElementById('forgotConfirmPassword').value;
+
+    if (!email || !password || !confirmPassword) {
+        showFrontNotification('Tous les champs sont obligatoires.', true);
+        return;
+    }
+
+    if (password.length < 6) {
+        showFrontNotification('Le mot de passe doit contenir au moins 6 caracteres.', true);
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        showFrontNotification('Les mots de passe ne correspondent pas.', true);
+        return;
+    }
+
+    try {
+        await usersApiRequest('reset-password', 'POST', {
+            email,
+            mot_de_passe: password
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal'))?.hide();
+        document.getElementById('forgotPasswordForm').reset();
+        showFrontNotification('Mot de passe reinitialise. Vous pouvez maintenant vous connecter.');
+        showSignInModal();
     } catch (error) {
         showFrontNotification(error.message, true);
     }

@@ -46,6 +46,43 @@ class MailModel
         return self::sendConfiguredMail($to, 'Nouvel avis patient - GlobalHealth Connect', $body);
     }
 
+    public static function sendWelcomeEmail(string $toEmail, string $prenom): array
+    {
+        $toEmail = trim($toEmail);
+        if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'error' => 'Email utilisateur invalide'];
+        }
+
+        $prenom = trim($prenom) !== '' ? trim($prenom) : 'Patient';
+        $body = "Bonjour {$prenom},\n\n"
+            . "Bienvenue sur GlobalHealth Connect.\n\n"
+            . "Votre compte a ete cree avec succes. Vous pouvez maintenant vous connecter, prendre rendez-vous, consulter vos dossiers et utiliser les services de la plateforme.\n\n"
+            . "Date d'inscription: " . date('d/m/Y H:i') . "\n"
+            . "Email du compte: {$toEmail}\n\n"
+            . "Si vous n'etes pas a l'origine de cette inscription, contactez rapidement le support.\n\n"
+            . "Cordialement,\nGlobalHealth Connect";
+
+        return self::sendConfiguredMail($toEmail, 'Bienvenue sur GlobalHealth Connect', $body);
+    }
+
+    public static function sendPasswordResetNotification(string $toEmail, string $prenom): array
+    {
+        $toEmail = trim($toEmail);
+        if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'error' => 'Email utilisateur invalide'];
+        }
+
+        $prenom = trim($prenom) !== '' ? trim($prenom) : 'Utilisateur';
+        $body = "Bonjour {$prenom},\n\n"
+            . "Votre mot de passe GlobalHealth Connect vient d'etre reinitialise.\n\n"
+            . "Date et heure: " . date('d/m/Y H:i') . "\n"
+            . "Email du compte: {$toEmail}\n\n"
+            . "Si vous n'etes pas a l'origine de cette action, reconnectez-vous rapidement et changez votre mot de passe, puis contactez le support.\n\n"
+            . "Cordialement,\nGlobalHealth Connect";
+
+        return self::sendConfiguredMail($toEmail, 'Mot de passe reinitialise - GlobalHealth Connect', $body);
+    }
+
     private static function sendConfiguredMail(string $to, string $subject, string $body): array
     {
         $config = self::getMailConfig();

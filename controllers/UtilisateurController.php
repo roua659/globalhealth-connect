@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../models/UtilisateurModel.php';
+require_once __DIR__ . '/../models/MailModel.php';
 
 class UtilisateurController {
     private $model;
@@ -155,6 +156,9 @@ class UtilisateurController {
             }
 
             $created = $this->model->getOne($newId);
+            if ($created) {
+                MailModel::sendWelcomeEmail((string)($created['email'] ?? ''), (string)($created['prenom'] ?? ''));
+            }
             $this->jsonResponse(['success' => true, 'data' => $this->normalizeUser($created)], 201);
         } catch (Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
@@ -280,6 +284,9 @@ class UtilisateurController {
             }
 
             $created = $this->model->getOne($newId);
+            if ($created) {
+                MailModel::sendWelcomeEmail((string)($created['email'] ?? ''), (string)($created['prenom'] ?? ''));
+            }
             $this->jsonResponse(['success' => true, 'data' => $this->normalizeUser($created)], 201);
         } catch (Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
@@ -384,6 +391,9 @@ class UtilisateurController {
             }
 
             $updated = $this->model->getOne((int)$user['id_user']);
+            if ($updated) {
+                MailModel::sendPasswordResetNotification((string)($updated['email'] ?? ''), (string)($updated['prenom'] ?? ''));
+            }
             $this->jsonResponse(['success' => true, 'data' => $this->normalizeUser($updated)]);
         } catch (Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()], 500);
