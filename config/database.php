@@ -12,7 +12,7 @@ class Database
         }
 
         $host = 'localhost';
-        $dbName = 'globalhealth';
+        $dbName = 'globalhealth-connect';
         $username = 'root';
         $password = '';
         $charset = 'utf8mb4';

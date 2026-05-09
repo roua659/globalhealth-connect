@@ -1364,11 +1364,76 @@ $usersApiBase = gh_users_api_base();
     function savePatients() {
         return;
     }
+
+    function getBootstrapModal(modalEl) {
+        if (!modalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+            return null;
+        }
+        return bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    }
+
+    function openAppModal(modalId) {
+        const modalEl = document.getElementById(modalId);
+        if (!modalEl) return;
+
+        const modal = getBootstrapModal(modalEl);
+        if (modal) {
+            modal.show();
+            return;
+        }
+
+        modalEl.style.display = 'block';
+        modalEl.removeAttribute('aria-hidden');
+        modalEl.setAttribute('aria-modal', 'true');
+        modalEl.classList.add('show');
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
+
+        if (!document.querySelector('.modal-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.dataset.fallbackBackdrop = 'true';
+            document.body.appendChild(backdrop);
+        }
+    }
+
+    function closeAppModal(modalId) {
+        const modalEl = document.getElementById(modalId);
+        if (!modalEl) return;
+
+        const modal = getBootstrapModal(modalEl);
+        if (modal) {
+            modal.hide();
+            return;
+        }
+
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+        modalEl.removeAttribute('aria-modal');
+
+        document.querySelectorAll('.modal-backdrop[data-fallback-backdrop="true"]').forEach((el) => el.remove());
+        if (!document.querySelector('.modal.show')) {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }
+    }
+
+    document.addEventListener('click', (event) => {
+        const closeBtn = event.target.closest('[data-bs-dismiss="modal"]');
+        if (!closeBtn) return;
+
+        const modalEl = closeBtn.closest('.modal');
+        if (!modalEl) return;
+
+        event.preventDefault();
+        closeAppModal(modalEl.id);
+    });
     
-    function showSignInModal() { new bootstrap.Modal(document.getElementById('signinModal')).show(); }
-    function showSignUpModal() { new bootstrap.Modal(document.getElementById('signupModal')).show(); }
-    function switchToSignUp() { bootstrap.Modal.getInstance(document.getElementById('signinModal')).hide(); showSignUpModal(); }
-    function switchToSignIn() { bootstrap.Modal.getInstance(document.getElementById('signupModal')).hide(); showSignInModal(); }
+    function showSignInModal() { openAppModal('signinModal'); }
+    function showSignUpModal() { openAppModal('signupModal'); }
+    function switchToSignUp() { closeAppModal('signinModal'); showSignUpModal(); }
+    function switchToSignIn() { closeAppModal('signupModal'); showSignInModal(); }
 
     // ── Helpers validation frontoffice ────────────────────────
     function fErr(id, msg) {
@@ -1420,7 +1485,7 @@ $usersApiBase = gh_users_api_base();
                 adresse: patient.adresse || null
             };
             localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
-            bootstrap.Modal.getInstance(document.getElementById('signinModal')).hide();
+            closeAppModal('signinModal');
             document.getElementById('signinForm').reset();
             fClearAll(['signinEmail', 'signinPassword']);
             updateUIForConnectedPatient();
@@ -1541,7 +1606,7 @@ $usersApiBase = gh_users_api_base();
             const newUser = await apiRequest('create', 'POST', userData);
             currentPatient = { id: newUser.id_user, name: newUser.name, email: newUser.email };
             localStorage.setItem('globalhealth_currentPatient', JSON.stringify(currentPatient));
-            bootstrap.Modal.getInstance(document.getElementById('signupModal')).hide();
+            closeAppModal('signupModal');
             document.getElementById('signupForm').reset();
             fClearAll(allFields);
             updateUIForConnectedPatient();
@@ -1586,7 +1651,7 @@ $usersApiBase = gh_users_api_base();
                 email,
                 mot_de_passe: password
             });
-            bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal')).hide();
+            closeAppModal('forgotPasswordModal');
             document.getElementById('forgotPasswordForm').reset();
             showNotification('Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.');
             showSignInModal();
@@ -1596,12 +1661,12 @@ $usersApiBase = gh_users_api_base();
     });
 
     function switchToForgotPassword() {
-        bootstrap.Modal.getInstance(document.getElementById('signinModal')).hide();
-        new bootstrap.Modal(document.getElementById('forgotPasswordModal')).show();
+        closeAppModal('signinModal');
+        openAppModal('forgotPasswordModal');
     }
 
     function switchToSignInFromForgot() {
-        bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal')).hide();
+        closeAppModal('forgotPasswordModal');
         showSignInModal();
     }
     
@@ -2591,14 +2656,6 @@ $usersApiBase = gh_users_api_base();
         if (!data.success) throw new Error(data.message || 'Erreur API validation');
         return data;
     }
-                'X-User-Role': currentPatient?.role ?? '',
-            },
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || 'Erreur API');
-        return data;
-    }
-
     // ── Charger le statut depuis l'API ────────────────────
     async function loadMedecinValidationStatut() {
         if (!currentPatient?.id) return;

@@ -20,7 +20,7 @@ class User
 
     public function getDoctors(): array
     {
-        $stmt = $this->db->prepare("SELECT id_user, nom, prenom, email, specialite
+        $stmt = $this->db->prepare("SELECT id_user, nom, prenom, email, specialite, role
                                     FROM utilisateur
                                     WHERE role = 'medecin'
                                     ORDER BY nom, prenom");
@@ -47,12 +47,14 @@ class User
     public function create(array $data): int
     {
         $sql = "INSERT INTO utilisateur
-            (nom, prenom, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, role)
+            (nom, prenom, sexe, poids, taille, email, mot_de_passe, cas_social, date_naissance, adresse, specialite, id_role, role)
             VALUES
-            (:nom, :prenom, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :role)";
+            (:nom, :prenom, :sexe, :poids, :taille, :email, :mot_de_passe, :cas_social, :date_naissance, :adresse, :specialite, :id_role, :role)";
 
         // Hachage du mot de passe avec bcrypt
         $hashedPassword = password_hash((string) $data['mot_de_passe'], PASSWORD_BCRYPT);
+        $roleIds = ['patient' => 1, 'medecin' => 2, 'admin' => 3];
+        $role = (string) ($data['role'] ?? 'patient');
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -67,7 +69,8 @@ class User
             'date_naissance' => $data['date_naissance'],
             'adresse' => $data['adresse'],
             'specialite' => $data['specialite'] ?? null,
-            'role' => $data['role'],
+            'id_role' => $roleIds[$role] ?? 1,
+            'role' => $role,
         ]);
 
         return (int) $this->db->lastInsertId();
