@@ -21,8 +21,7 @@ class SuivieModel {
     public $date_creation;
 
     public function __construct() {
-        $database = new Database();
-        $this->conn = $database->getConnection();
+        $this->conn = Database::getConnection();
     }
 
     // Lire tous les suivis
@@ -39,9 +38,14 @@ class SuivieModel {
                   LEFT JOIN consultation c ON s.id_consultation = c.id_consultation
                   ORDER BY s.date_suivi DESC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur readAll suivie: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Lire un suivi par ID
@@ -58,10 +62,15 @@ class SuivieModel {
                   LEFT JOIN consultation c ON s.id_consultation = c.id_consultation
                   WHERE s.id_suivie = :id";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur readOne suivie: " . $e->getMessage());
+            return null;
+        }
     }
 
     // Créer un suivi
@@ -185,9 +194,14 @@ class SuivieModel {
                   LEFT JOIN utilisateur u ON p.id_user = u.id_user
                   ORDER BY u.nom ASC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getAllPatients suivie: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Obtenir tous les médecins
@@ -197,9 +211,14 @@ class SuivieModel {
                   LEFT JOIN utilisateur u ON m.id_user = u.id_user
                   ORDER BY u.nom ASC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getAllMedecins suivie: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Obtenir toutes les consultations pour le select
@@ -209,26 +228,35 @@ class SuivieModel {
                   LEFT JOIN rendezvous r ON c.id_rdv = r.id_rdv
                   ORDER BY c.date_creation DESC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getAllConsultations suivie: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Obtenir les statistiques
     public function getStats() {
-        $stats = [];
+        $stats = ['total' => 0, 'moyenne_poids' => 0];
         
         // Total suivis
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name;
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $stats['total'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $stats['total'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
         
         // Moyenne poids
         $query = "SELECT AVG(poids) as moyenne_poids FROM " . $this->table_name . " WHERE poids IS NOT NULL";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $stats['moyenne_poids'] = round($stmt->fetch(PDO::FETCH_ASSOC)['moyenne_poids'], 1);
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $stats['moyenne_poids'] = round((float)($stmt->fetch(PDO::FETCH_ASSOC)['moyenne_poids'] ?? 0), 1);
+        } catch (PDOException $e) {
+            error_log("Erreur getStats suivie: " . $e->getMessage());
+        }
         
         return $stats;
     }

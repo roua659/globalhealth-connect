@@ -13,8 +13,7 @@ class ConsultationModel {
     public $date_creation;
 
     public function __construct() {
-        $database = new Database();
-        $this->conn = $database->getConnection();
+        $this->conn = Database::getConnection();
     }
 
     // Lire toutes les consultations
@@ -30,9 +29,14 @@ class ConsultationModel {
                   LEFT JOIN utilisateur u ON m.id_user = u.id_user
                   ORDER BY c.date_creation DESC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur readAll consultation: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Lire une consultation par ID
@@ -48,10 +52,15 @@ class ConsultationModel {
                   LEFT JOIN utilisateur u ON m.id_user = u.id_user
                   WHERE c.id_consultation = :id";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':id', $id);
+            $stmt->execute();
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur readOne consultation: " . $e->getMessage());
+            return null;
+        }
     }
 
     // Créer une consultation
@@ -132,29 +141,38 @@ class ConsultationModel {
                   LEFT JOIN utilisateur p ON pat.id_user = p.id_user
                   ORDER BY r.date_rdv DESC";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getAllRendezVous consultation: " . $e->getMessage());
+            return [];
+        }
     }
 
     // Obtenir les statistiques
     public function getStats() {
-        $stats = [];
+        $stats = ['total' => 0, 'par_mois' => []];
         
         // Total consultations
         $query = "SELECT COUNT(*) as total FROM " . $this->table_name;
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $stats['total'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $stats['total'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
         
         // Consultations par mois
         $query = "SELECT DATE_FORMAT(date_creation, '%Y-%m') as mois, COUNT(*) as count 
                   FROM " . $this->table_name . " 
                   GROUP BY DATE_FORMAT(date_creation, '%Y-%m')
                   ORDER BY mois DESC LIMIT 6";
-        $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $stats['par_mois'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt = $this->conn->prepare($query);
+            $stmt->execute();
+            $stats['par_mois'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Erreur getStats consultation: " . $e->getMessage());
+        }
         
         return $stats;
     }

@@ -10,12 +10,8 @@ class SuivieController {
 
     // Afficher la page principale
     public function index() {
-        $suivis = $this->model->readAll();
-        $stats = $this->model->getStats();
-        $patients = $this->model->getAllPatients();
-        $medecins = $this->model->getAllMedecins();
-        $consultations = $this->model->getAllConsultations();
-        require_once 'views/suivie.php';
+        header('Location: index.php?page=suivis');
+        exit();
     }
 
     // Récupérer un suivi (API)

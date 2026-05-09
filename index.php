@@ -7,134 +7,6 @@ require_once 'config/functions.php';
 // Démarrage de la session (corrigé)
 Session::start();
 
-spl_autoload_register(function ($className) {
-    foreach (['controllers', 'models'] as $dir) {
-        $path = __DIR__ . "/{$dir}/{$className}.php";
-        if (file_exists($path)) {
-            require_once $path;
-            return;
-        }
-    }
-});
-
-if (!function_exists('requireAdmin')) {
-    function requireAdmin() {
-        if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'admin') {
-            header('Location: index.php?controller=auth&action=login');
-            exit();
-        }
-    }
-}
-
-if (!function_exists('requireMedecin')) {
-    function requireMedecin() {
-        if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'medecin') {
-            header('Location: index.php?controller=auth&action=login');
-            exit();
-        }
-    }
-}
-
-if (!function_exists('requirePatient')) {
-    function requirePatient() {
-        if (!isset($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'patient') {
-            header('Location: index.php?controller=auth&action=login');
-            exit();
-        }
-    }
-}
-
-if (isset($_GET['controller'])) {
-    $controllerName = $_GET['controller'];
-    $controllerAction = $_GET['action'] ?? 'index';
-    $id = $_GET['id'] ?? null;
-
-    switch ($controllerName) {
-        case 'auth':
-            $controller = new AuthController();
-            $controllerAction === 'logout' ? $controller->logout() : $controller->login();
-            break;
-
-        case 'admin':
-            requireAdmin();
-            (new AdminController())->index();
-            break;
-
-        case 'consultation':
-            requireAdmin();
-            $controller = new ConsultationController();
-            if ($controllerAction === 'list') {
-                $controller->list();
-            } elseif ($controllerAction === 'get' && $id) {
-                $controller->get($id);
-            } elseif ($controllerAction === 'create') {
-                $controller->create();
-            } elseif ($controllerAction === 'update') {
-                $controller->update();
-            } elseif ($controllerAction === 'delete' && $id) {
-                $controller->delete($id);
-            } else {
-                $controller->index();
-            }
-            break;
-
-        case 'suivie':
-            requireAdmin();
-            $controller = new SuivieController();
-            if ($controllerAction === 'list') {
-                $controller->list();
-            } elseif ($controllerAction === 'get' && $id) {
-                $controller->get($id);
-            } elseif ($controllerAction === 'create') {
-                $controller->create();
-            } elseif ($controllerAction === 'update') {
-                $controller->update();
-            } elseif ($controllerAction === 'delete' && $id) {
-                $controller->delete($id);
-            } else {
-                $controller->index();
-            }
-            break;
-
-        case 'medecin':
-            requireMedecin();
-            $controller = new MedecinController();
-            if ($controllerAction === 'consultation') {
-                $controller->consultation();
-            } elseif ($controllerAction === 'suivie') {
-                $controller->suivie();
-            } elseif ($controllerAction === 'profile') {
-                $controller->profile();
-            } else {
-                $controller->index();
-            }
-            break;
-
-        case 'patient':
-            requirePatient();
-            $controller = new PatientController();
-            if ($controllerAction === 'consultations') {
-                $controller->consultations();
-            } elseif ($controllerAction === 'suivis') {
-                $controller->suivis();
-            } elseif ($controllerAction === 'sendMessage') {
-                $controller->sendMessage();
-            } else {
-                $controller->index();
-            }
-            break;
-
-        case 'verify':
-            $controller = new VerifyController();
-            $controllerAction === 'suivie' ? $controller->suivie() : $controller->consultation();
-            break;
-
-        default:
-            require_once 'views/frontoffice.php';
-    }
-    exit();
-}
-
 // Déterminer la page demandée
 $page = isset($_GET['page']) ? $_GET['page'] : 'frontoffice';
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
@@ -146,6 +18,66 @@ switch ($page) {
         break;
 
     case 'dashboard':
+        require_once 'views/backoffice.php';
+        break;
+
+    case 'consultations':
+        require_once 'controllers/ConsultationController.php';
+        require_once 'models/ConsultationModel.php';
+        $controller = new ConsultationController();
+
+        if ($action === 'list') {
+            $controller->list();
+            exit();
+        } elseif ($action === 'get' && isset($_GET['id'])) {
+            $controller->get($_GET['id']);
+            exit();
+        } elseif ($action === 'create') {
+            $controller->create();
+            exit();
+        } elseif ($action === 'update') {
+            $controller->update();
+            exit();
+        } elseif ($action === 'delete' && isset($_GET['id'])) {
+            $controller->delete($_GET['id']);
+            exit();
+        }
+
+        $consultationModel = new ConsultationModel();
+        $consultations = $consultationModel->readAll();
+        $consultationStats = $consultationModel->getStats();
+        $consultationRendezVous = $consultationModel->getAllRendezVous();
+        require_once 'views/backoffice.php';
+        break;
+
+    case 'suivis':
+        require_once 'controllers/SuivieController.php';
+        require_once 'models/SuivieModel.php';
+        $controller = new SuivieController();
+
+        if ($action === 'list') {
+            $controller->list();
+            exit();
+        } elseif ($action === 'get' && isset($_GET['id'])) {
+            $controller->get($_GET['id']);
+            exit();
+        } elseif ($action === 'create') {
+            $controller->create();
+            exit();
+        } elseif ($action === 'update') {
+            $controller->update();
+            exit();
+        } elseif ($action === 'delete' && isset($_GET['id'])) {
+            $controller->delete($_GET['id']);
+            exit();
+        }
+
+        $suivieModel = new SuivieModel();
+        $suivis = $suivieModel->readAll();
+        $suiviStats = $suivieModel->getStats();
+        $suiviPatients = $suivieModel->getAllPatients();
+        $suiviMedecins = $suivieModel->getAllMedecins();
+        $suiviConsultations = $suivieModel->getAllConsultations();
         require_once 'views/backoffice.php';
         break;
 

@@ -310,6 +310,14 @@ $errorMessage = Session::getFlash('error');
             <i class="fas fa-calendar-alt"></i>
             <span>Rendez-vous</span>
         </a>
+        <a href="?page=consultations" class="sidebar-menu-item <?php echo $currentPage == 'consultations' ? 'active' : ''; ?>">
+            <i class="fas fa-stethoscope"></i>
+            <span>Consultations</span>
+        </a>
+        <a href="?page=suivis" class="sidebar-menu-item <?php echo $currentPage == 'suivis' ? 'active' : ''; ?>">
+            <i class="fas fa-heart-pulse"></i>
+            <span>Suivis patients</span>
+        </a>
         <a href="?page=dossiers" class="sidebar-menu-item <?php echo $currentPage == 'dossiers' ? 'active' : ''; ?>">
             <i class="fas fa-folder-open"></i>
             <span>Dossiers médicaux</span>
@@ -389,6 +397,12 @@ $errorMessage = Session::getFlash('error');
         case 'rendezvous':
             includeContent('rendezvous');
             break;
+        case 'consultations':
+            includeContent('consultations');
+            break;
+        case 'suivis':
+            includeContent('suivis');
+            break;
         case 'dossiers':
             includeContent('dossiers');
             break;
@@ -426,6 +440,8 @@ $errorMessage = Session::getFlash('error');
     
     function includeContent($page) {
         global $users, $userStats, $patients, $medecins, $rendez_vous, $stats, $dossiers, $rdvStats, $dossierStats;
+        global $consultations, $consultationStats, $consultationRendezVous;
+        global $suivis, $suiviStats, $suiviPatients, $suiviMedecins, $suiviConsultations;
 
         switch ($page) {
             case 'dashboard':
@@ -988,6 +1004,471 @@ $errorMessage = Session::getFlash('error');
                     document.getElementById('filterDate').value = '';
                     document.querySelectorAll('#rdvTable tbody tr').forEach(row => row.style.display = '');
                 }
+                </script>
+                <?php
+                break;
+
+            case 'consultations':
+                $consultations = $consultations ?? [];
+                $consultationStats = $consultationStats ?? ['total' => count($consultations)];
+                $consultationRendezVous = $consultationRendezVous ?? [];
+                ?>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fas fa-stethoscope me-2" style="color: var(--medical-blue);"></i>Gestion des consultations</h2>
+                    <button class="btn btn-medical" onclick="openConsultationModal()">
+                        <i class="fas fa-plus me-2"></i>Nouvelle consultation
+                    </button>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Total consultations</h6>
+                            <h2 class="mb-0" id="consultationTotal"><?php echo (int)($consultationStats['total'] ?? count($consultations)); ?></h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Rendez-vous disponibles</h6>
+                            <h2 class="mb-0"><?php echo count($consultationRendezVous); ?></h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Dernière mise à jour</h6>
+                            <h2 class="mb-0" style="font-size:1.4rem;"><?php echo date('d/m/Y'); ?></h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <input type="text" id="consultationSearch" class="form-control" placeholder="Rechercher par patient, médecin, diagnostic ou traitement...">
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-outline-medical w-100" onclick="resetConsultationSearch()">
+                                <i class="fas fa-rotate-left me-2"></i>Réinitialiser
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="consultationsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Patient</th>
+                                    <th>Médecin</th>
+                                    <th>Date RDV</th>
+                                    <th>Diagnostic</th>
+                                    <th>Traitement</th>
+                                    <th>Créée le</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="consultationsTableBody">
+                                <?php if ($consultations): ?>
+                                    <?php foreach ($consultations as $consultation): ?>
+                                        <tr>
+                                            <td>#<?php echo (int)($consultation['id_consultation'] ?? 0); ?></td>
+                                            <td><?php echo htmlspecialchars(trim(($consultation['patient_nom'] ?? '') . ' ' . ($consultation['patient_prenom'] ?? '')) ?: '-'); ?></td>
+                                            <td><?php echo htmlspecialchars(trim(($consultation['medecin_nom'] ?? '') . ' ' . ($consultation['medecin_prenom'] ?? '')) ?: '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($consultation['date_rdv'] ?? '-'); ?></td>
+                                            <td><?php $diagnosticPreview = (string)($consultation['diagnostic'] ?? '-'); echo htmlspecialchars(strlen($diagnosticPreview) > 48 ? substr($diagnosticPreview, 0, 48) . '...' : $diagnosticPreview); ?></td>
+                                            <td><?php $traitementPreview = (string)($consultation['traitement'] ?? '-'); echo htmlspecialchars(strlen($traitementPreview) > 48 ? substr($traitementPreview, 0, 48) . '...' : $traitementPreview); ?></td>
+                                            <td><?php echo htmlspecialchars($consultation['date_creation'] ?? '-'); ?></td>
+                                            <td class="action-buttons">
+                                                <button class="btn btn-sm btn-warning" onclick="editConsultation(<?php echo (int)($consultation['id_consultation'] ?? 0); ?>)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" onclick="deleteConsultation(<?php echo (int)($consultation['id_consultation'] ?? 0); ?>)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="8" class="text-center">Aucune consultation trouvée</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="consultationModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="consultationModalTitle">Nouvelle consultation</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="consultationForm">
+                                    <input type="hidden" id="consultationId">
+                                    <div class="mb-3">
+                                        <label>Rendez-vous associé <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="consultationRdvId" required>
+                                            <option value="">Sélectionner un rendez-vous</option>
+                                            <?php foreach ($consultationRendezVous as $rdv): ?>
+                                                <option value="<?php echo (int)$rdv['id_rdv']; ?>">
+                                                    #<?php echo (int)$rdv['id_rdv']; ?> - <?php echo htmlspecialchars(trim(($rdv['patient_nom'] ?? '') . ' ' . ($rdv['patient_prenom'] ?? ''))); ?> - <?php echo htmlspecialchars($rdv['date_rdv'] ?? ''); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label>Diagnostic <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="consultationDiagnostic" rows="3" required></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label>Traitement <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="consultationTraitement" rows="3" required></textarea>
+                                    </div>
+                                    <div class="mb-0">
+                                        <label>Notes complémentaires</label>
+                                        <textarea class="form-control" id="consultationNotes" rows="2"></textarea>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                                <button type="button" class="btn btn-medical" onclick="submitConsultation()">Enregistrer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                function openConsultationModal() {
+                    document.getElementById('consultationForm').reset();
+                    document.getElementById('consultationId').value = '';
+                    document.getElementById('consultationModalTitle').textContent = 'Nouvelle consultation';
+                    new bootstrap.Modal(document.getElementById('consultationModal')).show();
+                }
+
+                async function editConsultation(id) {
+                    const response = await fetch(`index.php?page=consultations&action=get&id=${id}`);
+                    const data = await response.json();
+                    document.getElementById('consultationId').value = data.id_consultation || '';
+                    document.getElementById('consultationRdvId').value = data.id_rdv || '';
+                    document.getElementById('consultationDiagnostic').value = data.diagnostic || '';
+                    document.getElementById('consultationTraitement').value = data.traitement || '';
+                    document.getElementById('consultationNotes').value = data.notes || '';
+                    document.getElementById('consultationModalTitle').textContent = 'Modifier consultation';
+                    new bootstrap.Modal(document.getElementById('consultationModal')).show();
+                }
+
+                async function submitConsultation() {
+                    const id = document.getElementById('consultationId').value;
+                    const payload = {
+                        id_consultation: id,
+                        id_rdv: document.getElementById('consultationRdvId').value,
+                        diagnostic: document.getElementById('consultationDiagnostic').value.trim(),
+                        traitement: document.getElementById('consultationTraitement').value.trim(),
+                        notes: document.getElementById('consultationNotes').value.trim()
+                    };
+                    if (!payload.id_rdv || !payload.diagnostic || !payload.traitement) {
+                        alert('Veuillez remplir les champs obligatoires.');
+                        return;
+                    }
+                    const response = await fetch(`index.php?page=consultations&action=${id ? 'update' : 'create'}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        alert(result.message || 'Erreur lors de l enregistrement');
+                        return;
+                    }
+                    location.reload();
+                }
+
+                async function deleteConsultation(id) {
+                    if (!confirm('Supprimer cette consultation ?')) return;
+                    const response = await fetch(`index.php?page=consultations&action=delete&id=${id}`, { method: 'DELETE' });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        alert(result.message || 'Erreur lors de la suppression');
+                        return;
+                    }
+                    location.reload();
+                }
+
+                function filterConsultationsTable() {
+                    const search = (document.getElementById('consultationSearch')?.value || '').toLowerCase();
+                    document.querySelectorAll('#consultationsTable tbody tr').forEach(row => {
+                        row.style.display = row.textContent.toLowerCase().includes(search) ? '' : 'none';
+                    });
+                }
+
+                function resetConsultationSearch() {
+                    document.getElementById('consultationSearch').value = '';
+                    filterConsultationsTable();
+                }
+
+                document.getElementById('consultationSearch')?.addEventListener('input', filterConsultationsTable);
+                </script>
+                <?php
+                break;
+
+            case 'suivis':
+                $suivis = $suivis ?? [];
+                $suiviStats = $suiviStats ?? ['total' => count($suivis), 'moyenne_poids' => 0];
+                $suiviPatients = $suiviPatients ?? [];
+                $suiviMedecins = $suiviMedecins ?? [];
+                $suiviConsultations = $suiviConsultations ?? [];
+                ?>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fas fa-heart-pulse me-2" style="color: var(--medical-blue);"></i>Suivis patients</h2>
+                    <button class="btn btn-medical" onclick="openSuiviModal()">
+                        <i class="fas fa-plus me-2"></i>Nouveau suivi
+                    </button>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Total suivis</h6>
+                            <h2 class="mb-0"><?php echo (int)($suiviStats['total'] ?? count($suivis)); ?></h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Poids moyen</h6>
+                            <h2 class="mb-0"><?php echo htmlspecialchars((string)($suiviStats['moyenne_poids'] ?? 0)); ?> kg</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <h6 class="text-muted mb-2">Patients suivis</h6>
+                            <h2 class="mb-0"><?php echo count($suiviPatients); ?></h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <input type="text" id="suiviSearch" class="form-control" placeholder="Rechercher par patient, médecin, état général ou tension...">
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-outline-medical w-100" onclick="resetSuiviSearch()">
+                                <i class="fas fa-rotate-left me-2"></i>Réinitialiser
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="suivisTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Patient</th>
+                                    <th>Médecin</th>
+                                    <th>Date suivi</th>
+                                    <th>Poids</th>
+                                    <th>Tension</th>
+                                    <th>État général</th>
+                                    <th>Prochain RDV</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($suivis): ?>
+                                    <?php foreach ($suivis as $suivi): ?>
+                                        <tr>
+                                            <td>#<?php echo (int)($suivi['id_suivie'] ?? 0); ?></td>
+                                            <td><?php echo htmlspecialchars(trim(($suivi['patient_nom'] ?? '') . ' ' . ($suivi['patient_prenom'] ?? '')) ?: '-'); ?></td>
+                                            <td><?php echo htmlspecialchars(trim(($suivi['medecin_nom'] ?? '') . ' ' . ($suivi['medecin_prenom'] ?? '')) ?: '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($suivi['date_suivi'] ?? '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($suivi['poids'] ? $suivi['poids'] . ' kg' : '-'); ?></td>
+                                            <td><?php echo htmlspecialchars($suivi['tension'] ?? '-'); ?></td>
+                                            <td><?php $etatPreview = (string)($suivi['etat_general'] ?? '-'); echo htmlspecialchars(strlen($etatPreview) > 48 ? substr($etatPreview, 0, 48) . '...' : $etatPreview); ?></td>
+                                            <td><?php echo htmlspecialchars($suivi['prochain_rdv'] ?? '-'); ?></td>
+                                            <td class="action-buttons">
+                                                <button class="btn btn-sm btn-warning" onclick="editSuivi(<?php echo (int)($suivi['id_suivie'] ?? 0); ?>)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" onclick="deleteSuivi(<?php echo (int)($suivi['id_suivie'] ?? 0); ?>)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="9" class="text-center">Aucun suivi trouvé</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="suiviModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="suiviModalTitle">Nouveau suivi</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="suiviForm">
+                                    <input type="hidden" id="suiviId">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label>Patient <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="suiviPatientId" required>
+                                                <option value="">Sélectionner un patient</option>
+                                                <?php foreach ($suiviPatients as $patient): ?>
+                                                    <option value="<?php echo (int)$patient['id_patient']; ?>"><?php echo htmlspecialchars(trim(($patient['nom'] ?? '') . ' ' . ($patient['prenom'] ?? ''))); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Médecin <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="suiviMedecinId" required>
+                                                <option value="">Sélectionner un médecin</option>
+                                                <?php foreach ($suiviMedecins as $medecin): ?>
+                                                    <option value="<?php echo (int)$medecin['id_medecin']; ?>"><?php echo htmlspecialchars(trim(($medecin['nom'] ?? '') . ' ' . ($medecin['prenom'] ?? '') . ' - ' . ($medecin['specialite'] ?? ''))); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Consultation associée</label>
+                                            <select class="form-select" id="suiviConsultationId">
+                                                <option value="">Aucune consultation associée</option>
+                                                <?php foreach ($suiviConsultations as $consultation): ?>
+                                                    <option value="<?php echo (int)$consultation['id_consultation']; ?>">#<?php echo (int)$consultation['id_consultation']; ?> - <?php echo htmlspecialchars($consultation['diagnostic'] ?? 'Consultation'); ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Date du suivi <span class="text-danger">*</span></label>
+                                            <input type="date" class="form-control" id="suiviDate" required>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label>Poids (kg)</label>
+                                            <input type="number" step="0.1" class="form-control" id="suiviPoids">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label>Tension</label>
+                                            <input type="text" class="form-control" id="suiviTension" placeholder="Ex : 12/8">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label>Prochain RDV</label>
+                                            <input type="date" class="form-control" id="suiviProchainRdv">
+                                        </div>
+                                        <div class="col-12">
+                                            <label>État général <span class="text-danger">*</span></label>
+                                            <textarea class="form-control" id="suiviEtatGeneral" rows="2" required></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Analyses à réaliser</label>
+                                            <textarea class="form-control" id="suiviAnalyses" rows="2"></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label>Régime alimentaire</label>
+                                            <textarea class="form-control" id="suiviRegime" rows="2"></textarea>
+                                        </div>
+                                        <div class="col-12">
+                                            <label>Activité physique</label>
+                                            <textarea class="form-control" id="suiviActivite" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                                <button type="button" class="btn btn-medical" onclick="submitSuivi()">Enregistrer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                function openSuiviModal() {
+                    document.getElementById('suiviForm').reset();
+                    document.getElementById('suiviId').value = '';
+                    document.getElementById('suiviDate').value = new Date().toISOString().slice(0, 10);
+                    document.getElementById('suiviModalTitle').textContent = 'Nouveau suivi';
+                    new bootstrap.Modal(document.getElementById('suiviModal')).show();
+                }
+
+                async function editSuivi(id) {
+                    const response = await fetch(`index.php?page=suivis&action=get&id=${id}`);
+                    const data = await response.json();
+                    document.getElementById('suiviId').value = data.id_suivie || '';
+                    document.getElementById('suiviPatientId').value = data.id_patient || '';
+                    document.getElementById('suiviMedecinId').value = data.id_medecin || '';
+                    document.getElementById('suiviConsultationId').value = data.id_consultation || '';
+                    document.getElementById('suiviDate').value = data.date_suivi || '';
+                    document.getElementById('suiviPoids').value = data.poids || '';
+                    document.getElementById('suiviTension').value = data.tension || '';
+                    document.getElementById('suiviProchainRdv').value = data.prochain_rdv || '';
+                    document.getElementById('suiviEtatGeneral').value = data.etat_general || '';
+                    document.getElementById('suiviAnalyses').value = data.analyses_a_realiser || '';
+                    document.getElementById('suiviRegime').value = data.regime_alimentaire || '';
+                    document.getElementById('suiviActivite').value = data.activite_physique || '';
+                    document.getElementById('suiviModalTitle').textContent = 'Modifier suivi';
+                    new bootstrap.Modal(document.getElementById('suiviModal')).show();
+                }
+
+                async function submitSuivi() {
+                    const id = document.getElementById('suiviId').value;
+                    const payload = {
+                        id_suivie: id,
+                        id_patient: document.getElementById('suiviPatientId').value,
+                        id_medecin: document.getElementById('suiviMedecinId').value,
+                        id_consultation: document.getElementById('suiviConsultationId').value || null,
+                        date_suivi: document.getElementById('suiviDate').value,
+                        poids: document.getElementById('suiviPoids').value || null,
+                        tension: document.getElementById('suiviTension').value.trim(),
+                        prochain_rdv: document.getElementById('suiviProchainRdv').value || null,
+                        etat_general: document.getElementById('suiviEtatGeneral').value.trim(),
+                        analyses_a_realiser: document.getElementById('suiviAnalyses').value.trim(),
+                        regime_alimentaire: document.getElementById('suiviRegime').value.trim(),
+                        activite_physique: document.getElementById('suiviActivite').value.trim()
+                    };
+                    if (!payload.id_patient || !payload.id_medecin || !payload.date_suivi || !payload.etat_general) {
+                        alert('Veuillez remplir les champs obligatoires.');
+                        return;
+                    }
+                    const response = await fetch(`index.php?page=suivis&action=${id ? 'update' : 'create'}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        alert(result.message || 'Erreur lors de l enregistrement');
+                        return;
+                    }
+                    location.reload();
+                }
+
+                async function deleteSuivi(id) {
+                    if (!confirm('Supprimer ce suivi ?')) return;
+                    const response = await fetch(`index.php?page=suivis&action=delete&id=${id}`, { method: 'DELETE' });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        alert(result.message || 'Erreur lors de la suppression');
+                        return;
+                    }
+                    location.reload();
+                }
+
+                function filterSuivisTable() {
+                    const search = (document.getElementById('suiviSearch')?.value || '').toLowerCase();
+                    document.querySelectorAll('#suivisTable tbody tr').forEach(row => {
+                        row.style.display = row.textContent.toLowerCase().includes(search) ? '' : 'none';
+                    });
+                }
+
+                function resetSuiviSearch() {
+                    document.getElementById('suiviSearch').value = '';
+                    filterSuivisTable();
+                }
+
+                document.getElementById('suiviSearch')?.addEventListener('input', filterSuivisTable);
                 </script>
                 <?php
                 break;

@@ -10,10 +10,8 @@ class ConsultationController {
 
     // Afficher la page principale
     public function index() {
-        $consultations = $this->model->readAll();
-        $stats = $this->model->getStats();
-        $rendezvous = $this->model->getAllRendezVous();
-        require_once 'views/consultation.php';
+        header('Location: index.php?page=consultations');
+        exit();
     }
 
     // Récupérer une consultation (API)
