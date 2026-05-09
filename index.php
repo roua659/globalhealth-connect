@@ -4,98 +4,11 @@ require_once 'config/database.php';
 require_once 'config/session.php';
 require_once 'config/functions.php';
 
-spl_autoload_register(function ($class) {
-    $paths = [
-        __DIR__ . '/controllers/',
-        __DIR__ . '/models/',
-        __DIR__ . '/config/'
-    ];
-    foreach ($paths as $path) {
-        $file = $path . $class . '.php';
-        if (file_exists($file)) {
-            require_once $file;
-            return;
-        }
-    }
-});
-
-function serveRouteFile(string $relativePath): void
-{
-    $filePath = __DIR__ . '/' . $relativePath;
-    if (!file_exists($filePath)) {
-        http_response_code(404);
-        echo "Fichier non trouvé";
-        return;
-    }
-
-    $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-    if ($ext === 'php') {
-        require $filePath;
-        return;
-    }
-
-    header('Content-Type: ' . mime_content_type($filePath));
-    readfile($filePath);
-}
-
-function dispatchYassmineRoutes(): bool
-{
-    $routes = [
-        '' => ['type' => 'file', 'path' => 'views/frontoffice/layout/index.php'],
-        'index.php' => ['type' => 'file', 'path' => 'views/frontoffice/layout/index.php'],
-        'backoffice.php' => ['type' => 'file', 'path' => 'views/backoffice/layout/backoffice.php'],
-
-        'api/users/list' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'list'],
-        'api/users/doctors' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'doctors'],
-        'api/users/create' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'create'],
-        'api/users/update' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'update'],
-        'api/users/delete' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'delete'],
-        'api/users/register-patient' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'registerPatient'],
-        'api/users/login-patient' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'loginPatient'],
-        'api/users/reset-password' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'resetPassword'],
-        'api/users/get-current-user' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'getCurrentUser'],
-        'api/users/search' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'search'],
-        'api/users/stats' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'stats'],
-        'api/users/export-pdf' => ['type' => 'controller', 'controller' => 'UserController', 'action' => 'exportPdf'],
-
-        'api/validation/statut' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'statut'],
-        'api/validation/upload' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'upload'],
-        'api/validation/admin/en-attente' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminEnAttente'],
-        'api/validation/admin/medecins' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminTousMedecins'],
-        'api/validation/admin/details' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminDetails'],
-        'api/validation/admin/valider' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminValider'],
-        'api/validation/admin/refuser' => ['type' => 'controller', 'controller' => 'ValidationMedecinController', 'action' => 'adminRefuser'],
-    ];
-
-    $url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
-    if (!isset($routes[$url])) {
-        return false;
-    }
-
-    $config = $routes[$url];
-    if ($config['type'] === 'file') {
-        serveRouteFile($config['path']);
-        return true;
-    }
-
-    $controllerName = $config['controller'];
-    $actionName = $config['action'];
-    $controller = new $controllerName();
-    $controller->$actionName();
-    return true;
-}
-
-if (isset($_GET['url']) || (!isset($_GET['page']) && !isset($_GET['action']))) {
-    if (dispatchYassmineRoutes()) {
-        exit();
-    }
-}
-
 // Démarrage de la session (corrigé)
 Session::start();
 
 // Déterminer la page demandée
-$page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
+$page = isset($_GET['page']) ? $_GET['page'] : 'frontoffice';
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
 
 // Redirection selon la page
