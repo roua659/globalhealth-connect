@@ -1,0 +1,7 @@
+<?php
+return [
+    'client_id' => 'votre-client-id.apps.googleusercontent.com',
+    'client_secret' => 'votre-client-secret',
+    'redirect_uri' => 'http://localhost/rdv4/index.php?page=google-calendar&action=callback',
+    'timezone' => 'Africa/Tunis',
+];

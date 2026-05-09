@@ -1,0 +1,6 @@
+<?php
+
+return [
+    'api_key' => 'AIza-votre-cle-gemini-ici',
+    'model' => 'gemini-2.0-flash',
+];
